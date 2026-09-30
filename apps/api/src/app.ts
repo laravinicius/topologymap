@@ -6,6 +6,8 @@ import type { AuthSession, AuthUser, LoginInput } from '@topologia-new/domain';
 import { createHash, randomBytes } from 'node:crypto';
 import type { AuthConfig } from './auth/config.js';
 import { hashPassword, normalizeLogin, validLogin, verifyPassword } from './auth/password.js';
+import { HttpError, registerAuthorization } from './auth/authorization.js';
+import { registerAdministration } from './admin/routes.js';
 
 declare module 'fastify' {
   interface FastifyRequest { session: AuthSession | null }
@@ -17,6 +19,7 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
   const app = Fastify({
     logger: logger ? { redact: ['req.headers.cookie', 'req.headers.authorization', 'req.body.password', 'res.headers.set-cookie'] } : false,
     bodyLimit: 4096,
+    ajv: { customOptions: { removeAdditional: false, coerceTypes: false } },
     // Não confiar em X-Forwarded-For enviado pelo cliente/proxy de desenvolvimento.
     trustProxy: false,
   });
@@ -38,7 +41,11 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
   }
 
   app.setErrorHandler<FastifyError>((error, _request, reply) => {
-    if (error.validation || error.statusCode === 400) return reply.code(400).send({ message: 'Confira o login e a senha informados.' });
+    if (error instanceof HttpError) return reply.code(error.statusCode).send({ message: error.message });
+    if (error.validation || error.statusCode === 400) return reply.code(400).send({ message: 'Confira os campos informados e seus limites.' });
+    const code = (error as FastifyError & { code?: string }).code;
+    if (code === '23505') return reply.code(409).send({ message: 'Nome ou login já cadastrado.' });
+    if (code === '23503') return reply.code(409).send({ message: 'Referência inexistente ou cadastro com dependências.' });
     if (error.statusCode === 413 || error.statusCode === 415) return reply.code(error.statusCode).send({ message: 'Formato ou tamanho da requisição inválido.' });
     app.log.error({ requestId: _request.id }, 'Falha ao processar requisição.');
     return reply.code(503).send({ message: 'Serviço indisponível. Tente novamente.' });
@@ -127,7 +134,9 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
     } finally { hashing--; }
   });
 
-  app.get('/api/auth/session', async request => request.session!);
+  registerAuthorization(app, pool);
+  registerAdministration(app, pool);
+  app.get('/api/auth/session', { config: { access: 'session' } }, async request => request.session!);
   app.post('/api/auth/logout', async (request, reply) => {
     const token = request.cookies[cookieName];
     if (token && /^[a-f0-9]{64}$/.test(token)) {
@@ -136,6 +145,6 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
     reply.clearCookie(cookieName, cookieOptions);
     return reply.code(204).send();
   });
-  app.get('/api/park', async () => ({ message: 'Os cadastros do parque serão disponibilizados nas próximas etapas.' }));
+  app.get('/api/park', { config: { access: 'session' } }, async () => ({ message: 'Selecione uma empresa autorizada para acessar seu parque.' }));
   return app;
 }

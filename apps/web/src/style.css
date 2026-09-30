@@ -11,8 +11,8 @@ input, button { -webkit-tap-highlight-color: transparent; }
 .login-layout { max-width: 480px; }
 form { display: flex; flex-direction: column; margin-top: 24px; }
 label { font-weight: 600; margin-bottom: 6px; }
-input { width: 100%; min-height: 48px; border: 1px solid #64748b; border-radius: 6px; padding: 10px 12px; font: inherit; color: inherit; background: #fff; margin-bottom: 20px; }
-input:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+input, select { width: 100%; min-width: 0; min-height: 48px; border: 1px solid #64748b; border-radius: 6px; padding: 10px 12px; font: inherit; color: inherit; background: #fff; margin-bottom: 20px; }
+input:focus-visible, select:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
 .login-submit { width: 100%; }
 .logout { margin: 0; }
 main { width: min(100% - 40px, 760px); margin: 64px auto; }
@@ -36,6 +36,21 @@ button:hover:not(:disabled) { background: #1e40af; }
 button:focus-visible { outline: 3px solid #2563eb; outline-offset: 4px; }
 button:disabled { opacity: .65; cursor: wait; }
 .scope { margin: 28px 0; }
+.workspace-nav { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.secondary { background: #fff; color: #1d4ed8; }
+.secondary:hover:not(:disabled) { background: #eff6ff; }
+.admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+.admin-grid > section, .permissions, .company-context { min-width: 0; overflow-wrap: anywhere; }
+h3 { font-size: 1.05rem; margin: 24px 0 12px; }
+.hint { margin: -8px 0 16px; font-size: .875rem; }
+.success { color: #166534; }
+.checkbox { display: flex; align-items: center; gap: 12px; }
+.checkbox input { width: 24px; min-height: 24px; margin: 0; }
+.permissions { margin-top: 28px; border-top: 1px solid #cbd5e1; }
+.permission-list { list-style: none; padding: 0; }
+.permission-list li { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 0; border-bottom: 1px solid #e2e8f0; }
+.permission-list button { margin: 0; }
+@media (max-width: 640px) { .admin-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 480px) {
   main { width: calc(100% - 32px); margin: 32px auto; }
   .panel { padding: 20px; }

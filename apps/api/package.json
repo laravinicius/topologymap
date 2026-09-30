@@ -12,6 +12,7 @@
     "db:status": "tsx src/database/cli.ts status",
     "test:db": "tsx --test --test-concurrency=1 test/database.test.ts",
     "test:auth": "tsx --test --test-concurrency=1 test/auth.test.ts",
+    "test:access": "tsx --test --test-concurrency=1 test/access.test.ts",
     "admin:create": "tsx src/auth/admin-cli.ts"
   },
   "dependencies": {

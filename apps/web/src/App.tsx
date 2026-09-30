@@ -2,19 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { AuthSession } from '@topologia-new/domain';
 import { HealthPanel } from './HealthPanel';
-
-class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message); }
-}
-async function api<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, { ...options, credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(10000) });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(response.status, body?.message ?? 'Serviço indisponível. Tente novamente.');
-  }
-  return (response.status === 204 ? undefined : await response.json()) as T;
-}
-const message = (error: unknown) => error instanceof ApiError ? error.message : 'Não foi possível conectar. Tente novamente.';
+import { api, ApiError, message } from './api';
+import { Workspace } from './Workspace';
 
 export function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -25,7 +14,6 @@ export function App() {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [notice, setNotice] = useState('');
-  const [park, setPark] = useState('');
   const authEpoch = useRef(0);
   const authAction = useRef(false);
   const checkNumber = useRef(0);
@@ -57,21 +45,15 @@ export function App() {
   }, [checkSession]);
   useEffect(() => {
     if (loading || connectionError) return;
-    const path = session ? '/parque' : '/login';
+    const path = session ? (window.location.pathname === '/administracao' && session.user.isAdmin ? '/administracao' : '/parque') : '/login';
     if (window.location.pathname !== path) window.history.replaceState(null, '', path);
   }, [session, loading, connectionError]);
   useEffect(() => {
-    if (!session) { setPark(''); return; }
+    if (!session) return;
     const expired = () => { setSession(null); setNotice('Sua sessão expirou. Entre novamente.'); };
     const timeout = window.setTimeout(expired, Math.max(0, Date.parse(session.expiresAt) - Date.now()));
     const interval = window.setInterval(() => { void checkSession(); }, 30000);
-    let active = true;
-    void api<{ message: string }>('/park').then(result => { if (active) setPark(result.message); }).catch(error => {
-      if (!active) return;
-      if (error instanceof ApiError && error.status === 401) expired();
-      else setActionError(message(error));
-    });
-    return () => { active = false; window.clearTimeout(timeout); window.clearInterval(interval); };
+    return () => { window.clearTimeout(timeout); window.clearInterval(interval); };
   }, [session?.expiresAt, checkSession]);
 
   async function enter(event: FormEvent) {
@@ -123,9 +105,9 @@ export function App() {
             <div className="panel-header"><h2 id="park-title">Parque de infraestrutura</h2><button className="logout" disabled={busy} onClick={() => void leave()}>{busy ? 'Saindo…' : 'Sair'}</button></div>
             <p>Olá, <strong>{session.user.name}</strong>.</p>
             <p className="intro">{session.user.isAdmin ? 'Administrador geral' : 'Usuário autenticado'}</p>
-            <p>{park || 'Carregando…'}</p>
             {actionError && <p role="alert" className="error">{actionError}</p>}
           </section>
+          <Workspace key={session.user.id} session={session} checkSession={checkSession} />
           <HealthPanel />
         </>
       )}

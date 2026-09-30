@@ -4,7 +4,7 @@ Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Gi
 
 Atualizado em 30/09/2026, às 17:10 (America/Sao_Paulo).
 
-**Estado atual:** etapas 01 a 03 concluídas. Ambiente local saudável, autenticação funcional e parque vazio. O usuário cria seu primeiro administrador por `npm run admin:create`, conforme o README; nenhuma conta foi provisionada no banco de trabalho durante a validação. Próxima etapa: 04, pendente e não iniciada. As seções 01/02 preservam o histórico; o resultado atual está na seção 03.
+**Estado atual:** etapas 01 a 04 concluídas. Ambiente local saudável, autenticação, administração global e autorização por empresa disponíveis. Administrador e sessão existentes preservados; empresas e parque de trabalho continuam vazios. Dados sintéticos usados somente em bancos separados. Próxima etapa: 05, pendente e não iniciada. As seções 01 a 03 preservam o histórico; o resultado atual está na seção 04.
 
 ## Etapa 01 — Workspace e Docker local
 
@@ -244,3 +244,71 @@ Informe nome/login e uma senha própria no terminal; não coloque a credencial e
 Parar preservando volumes: `npm run dev:stop`. Retomar: `npm run dev:all`. O repositório Git estava limpo no começo desta etapa; não houve commit, push ou publicação. Os registros de inexistência de Git nas etapas anteriores são históricos.
 
 Typecheck/build, testes de API/PostgreSQL e navegador local são evidências distintas. Não houve teste em celular físico nem produção. **Pendências da etapa 03: nenhuma. Próxima etapa: 04 — Usuários e permissões por empresa, pendente e não iniciada.**
+
+## Etapa 04 — Usuários e permissões por empresa
+
+**Situação: Concluída em 30/09/2026.** Administração exclusiva do administrador geral, autorização central na API e navegação por empresas autorizadas disponíveis em [http://localhost:5173](http://localhost:5173). A etapa 05 permanece pendente e não foi iniciada.
+
+### Resultado e arquivos principais
+
+- `apps/api/src/auth/authorization.ts`: políticas explícitas de sessão, administrador e empresa, hook central após validação e recusa de rotas sem política. Empresa e papel vêm do banco em cada requisição, sem cache na sessão. Escritas por viewer recebem 403; empresa não autorizada/inexistente recebe a mesma resposta 404.
+- `apps/api/src/admin/routes.ts`: criação/edição/desativação/reativação de usuários, troca de senha, criação/renomeação básicas de empresas, consulta/concessão/revogação de acessos. Somente administrador geral altera esses cadastros. Usuários novos começam sem permissões e sem perfil global. Hashes e registros de sessões não são devolvidos. Duplicidades recebem 409 e entradas inválidas 400.
+- `apps/api/src/app.ts`: integração da autorização, schemas sem coerção ou descarte de propriedades extras, erros públicos e manutenção da proteção de origem/sessão. Desativação e troca de senha revogam sessões em transação sob lock; reativação não recupera cookie antigo. O administrador não pode ser desativado; promoção/rebaixamento global não é exposto.
+- `packages/domain/src/access.ts`: DTOs públicos compartilhados para usuários, empresas e concessões, reutilizando os papéis manager/viewer do domínio.
+- `apps/web/src/{Workspace,Administration,api}.tsx/ts`, `App.tsx` e `style.css`: administração com formulários, seletores, atividade, feedback e revogação; seletor de empresas com papel atual, contexto na URL, estados vazios e revalidação por foco/30 segundos/atualização manual. Respostas antigas não substituem uma nova seleção. Desktop em duas colunas e celular em uma, preservando a aparência simples existente.
+- `apps/api/test/access.test.ts`: API com PostgreSQL exclusivo e dados sintéticos; script `npm run test:access`. `test/browser-server.ts --stage04`: opção explícita de QA cria apenas o administrador sintético no banco temporário, sem provisionar no startup ou no banco de trabalho.
+- README, arquitetura, plano e documentação do banco atualizados. Não houve dependência nova, alteração de lockfile, migração nova ou reset de volume: o esquema 001 já contém todas as tabelas/constraints necessárias.
+
+Criação e renomeação de empresas são administrativas; gerenciamento por empresa autoriza a gestão do parque, cujo CRUD começa na etapa 05. Para provar a escrita permitida/negada sem antecipar essa etapa, o teste registra uma rota **somente no app de teste**, com a política central e UPDATE real de unidade sintética. A consulta inclui company_id autorizado e ID do filho. Essa rota não existe no servidor da aplicação. Exclusão/arquivamento de empresas continua reservado à etapa 05.
+
+### Verificações executadas
+
+| Camada/cenário | Procedimento | Resultado |
+|---|---|---|
+| Dependências 01 a 03 | Compose, healthcheck, esquema e testes de autenticação | Serviços foram iniciados; três migrações já aplicadas. Administrador e sessão de trabalho existentes preservados. |
+| Administração e payloads | Criar usuário/empresas por API; listar/editar; enviar isAdmin extra, papel inválido, nomes vazios, senha curta, UUID inválido e duplicidades | 201/200 nos cadastros válidos; 400/404/409 nos inválidos; nenhum hash/token/sessão interna nos formulários. |
+| Sem concessões | Login de usuário ativo sem permissões | Sessão 200, lista vazia; empresa sem acesso 404. |
+| Papéis diferentes | Mesmo usuário manager em A e viewer em B, mantendo cookie | Lista/contexto com papel correto em cada empresa. Administrador acessa A/B/C sem concessões individuais. |
+| Escrita direta | PATCH real na rota de teste, primeiro em A e depois em B | Gerente grava em A; visualizador recebe 403 em B; linha de B permanece igual. Administrador grava em B. |
+| Administração global | Usuário comum tenta listar/criar/editar usuários, criar/renomear empresas e conceder/revogar acessos | Todas as operações administrativas testadas recebem 403. |
+| Referências cruzadas | Empresa C sem concessão, UUID inexistente, UUID inválido, filho de B sob contexto A | 404 sem revelar C; inválido 400; filho cruzado 404 e sem gravação. |
+| Troca de papel e identidade | Renomear usuário/empresa, repetir upsert, manager → viewer → manager | IDs/concessões preservados, sem duplicação; próxima escrita usa o papel atual com a mesma sessão. |
+| Revogação | DELETE via administração; reenviar cookie em leitura/escrita/listagem | Empresa revogada deixa lista e retorna 404; outra empresa e sessão continuam 200. Revogação repetida é idempotente. |
+| Desativação/reativação | PATCH isActive false, consultas com cookie antigo, login, nova concessão e posterior reativação | Sessão/parque/lista 401; login inativo 401 e concessão rejeitada; reativar não revive cookie antigo; novo login funciona. |
+| Senha e acesso administrativo | Trocar senha com sessão existente; tentar desativar administrador | Sessão anterior 401; senha anterior falha, nova entra; desativação do administrador 409, sessão administrativa preservada. |
+| Proteções anteriores | Origin ausente/externa, ausência de sessão e rota sem política | Escritas 403 ou 401 conforme origem/sessão; rota sem política 403. |
+| Testes de acesso | `npm run test:access` | **13/13** aprovados (12 cenários + principal), PostgreSQL real e banco removido. |
+| Regressão de autenticação | `npm run test:auth` | **15/15** aprovados. |
+| Regressão do banco | `npm run test:db` | **35/35** aprovados: instalação/upgrade, preservação, constraints e concorrência. |
+| Domínio | `npm run test:domain` | **4/4** aprovados. Total: **67/67**. |
+| Typecheck/build | Host Windows e `docker compose exec -T api npm run typecheck` / `npm run build` | Aprovados; inclui os testes tipados. Build Linux final: JS 237,64 kB / 73,39 kB gzip. |
+| Imagens/serviços | `npm run dev:all` após remover QA; `docker compose ps`; healthcheck pelo proxy | Imagens pelo lockfile, três serviços saudáveis, API/banco sem portas publicadas. |
+| Arquivos | `git diff --check`; estado Git e ignores | Sem erro de whitespace; evidências/credenciais de QA ignoradas. Sem commit, push ou publicação. |
+
+### Validação real no navegador
+
+Playwright CLI conduziu Chromium com **banco exclusivo** `topologia_new_test04_browser_*`, API interna temporária em 3002 e container web temporário com Vite publicado apenas em `127.0.0.1:5174`. Nenhum cadastro sintético foi feito pelo endereço de trabalho. UI/UX Pro Max orientou labels, erros anunciados, feedback, foco e layout responsivo, mantendo a identidade atual.
+
+- Pela tela administrativa foram criadas A, B, C e dois usuários sintéticos. O mesmo usuário recebeu gerenciamento em A e visualização em B; C permaneceu sem concessão. Usuários novos ficam sem empresas até a concessão explícita.
+- A sessão do usuário comum mostrou somente A/B, papéis distintos e ausência de Administração. Selecionar A mostrou Gerenciamento; B mostrou Visualização — somente consulta. Recarregar manteve cookie e empresa da URL.
+- Uma chamada direta do visualizador a PATCH administrativo retornou 403. Consulta direta de C, mesmo com query string mencionando A, retornou 404. A lista não revelou C.
+- Renomear usuário e A pela interface preservou IDs e permissões. Nome atualizado apareceu na consulta da sessão existente e na lista de empresas.
+- Revogar A preservou B e a sessão; depois de restabelecer A, revogar B enquanto estava selecionada retornou 404 na próxima chamada. **Atualizar acessos** removeu B do seletor e retirou seu conteúdo, com erro claro. A e sessão permaneceram 200.
+- Desativar o usuário pela interface retornou 401 nas consultas seguintes usando a sessão existente. Recarregar voltou a `/login`. Reativação e novo login também foram cobertos nos testes da API.
+- Criar empresa duplicada mostrou **Nome ou login já cadastrado.** sem alterar cadastro. Criar outro usuário selecionou sua edição e a área de permissões. Ao entrar sem concessões, a interface mostrou **Você ainda não tem acesso a empresas. Solicite a concessão ao administrador geral.**
+- Viewports **1280 × 900** e **390 × 844**: administração e contexto do visualizador conferidos visualmente; sem overflow horizontal; campos de texto, selects e botões com pelo menos 44 px. Rolagem vertical normal e foco visível. Não houve teste em celular físico.
+- Console sem exceções da aplicação; 401/403/404/409 são respostas esperadas dos cenários. O favicon ausente já registrado na etapa 03 permanece com 404, sem impedir o fluxo.
+
+Evidências locais em `docs/evidencias/etapa04/`: `testes-acessos.txt`, `testes-autenticacao.txt`, `testes-banco.txt`, `testes-dominio.txt`, `typecheck-host.txt`, `build-host.txt`, `typecheck-linux.txt`, `build-linux.txt`; administração desktop/celular, visualização desktop/celular, revogação e retorno ao login em PNG. Resultados de chamadas diretas, isolamento, revogação, desativação, validação de formulário, criação de usuário, estado sem acessos e layout em `navegador-*.txt`.
+
+### Estado final e operação
+
+O banco de trabalho mantém **1 usuário e 1 sessão existentes**, com **0 empresas e 0 permissões**; todas as tabelas do parque permanecem vazias. Duas janelas de login existentes e três versões de migração estão registradas. Nenhum usuário/empresa sintético foi inserido ali. O banco temporário de QA foi removido, assim como o container temporário e o arquivo de credencial; **zero bancos temporários restantes**. Contagens registradas em `estado-banco.json` (30/09/2026, 19:41:47, America/Sao_Paulo).
+
+Volume `topologia_new_postgres_data` preservado, criação **2026-09-30T17:51:39Z**. Após reconstrução final, permanecem API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` saudáveis. Evidências: `volume.txt`, `servicos-build.txt` e `verificacao-final.json`. URL de trabalho: [http://localhost:5173](http://localhost:5173).
+
+Conferência após reconstrução, às **19:45:41**: mesmas contagens e nenhum banco temporário (`estado-banco-final.json`). Navegador sem sessão aberto em `http://localhost:5173/parque` voltou a `/login`, com tela pronta para o administrador existente; captura em `login-ambiente-usuario.png`. Healthcheck final HTTP 200, status ok e database up. Os logs typecheck/build do host também foram atualizados com a versão final.
+
+Entre com seu administrador existente, abra **Administração**, crie empresas/usuários e conceda os acessos. Para verificar: `npm run test:access`. Para retomar serviços: `npm run dev:all`; para parar preservando volumes: `npm run dev:stop`. Não é necessário executar migração nova para esta entrega.
+
+Typecheck/build, API/PostgreSQL e navegador local foram validados separadamente. Não houve teste em dispositivo físico ou produção. **Pendências essenciais da etapa 04: nenhuma. Próxima etapa: 05 — Empresas, unidades, andares, plantas e datacenters**, somente mediante nova solicitação.

@@ -1,6 +1,6 @@
 # Topologia New
 
-Projeto independente para documentar plantas, mesas, datacenters, racks e conexões de várias empresas. Etapas 01 a 03 concluídas: ambiente Docker, domínio, migrações e autenticação com sessões PostgreSQL. O parque começa vazio; o primeiro administrador é criado explicitamente pelo usuário, sem senha padrão.
+Projeto independente para documentar plantas, mesas, datacenters, racks e conexões de várias empresas. Etapas 01 a 04 concluídas: ambiente Docker, domínio, migrações, autenticação, administração global e acessos por empresa. O parque começa vazio; o primeiro administrador é criado explicitamente pelo usuário, sem senha padrão.
 
 - [Escopo](docs/ESCOPO.md)
 - [Arquitetura](docs/IMPLEMENTACAO.md)
@@ -57,11 +57,23 @@ npm run admin:create
 
 Informe **nome**, **login**, **senha** e **confirmação da senha** quando solicitado. A senha não aparece no terminal e deve ter de 12 a 128 caracteres. Login aceita de 1 a 100 caracteres: letras sem acentos, números e `. _ @ + -`; espaços nas extremidades são removidos e letras convertidas para minúsculas. Depois, entre em [http://localhost:5173/login](http://localhost:5173/login) com o acesso que acabou de criar.
 
-Use o comando sem `-T`: entrada não interativa é recusada. Não passe a senha como argumento, variável `VITE_*`, arquivo versionável ou comando no histórico. Não existe conta padrão, seed de administrador nem provisionamento no startup. O comando cria somente o primeiro administrador; se já houver um, inclusive desativado, termina com erro e **não altera senha, nome ou conta**. Um login já existente também é recusado; execuções simultâneas são serializadas no banco. A administração posterior de usuários e permissões pertence à etapa 04, ainda pendente.
+Use o comando sem `-T`: entrada não interativa é recusada. Não passe a senha como argumento, variável `VITE_*`, arquivo versionável ou comando no histórico. Não existe conta padrão, seed de administrador nem provisionamento no startup. O comando cria somente o primeiro administrador; se já houver um, inclusive desativado, termina com erro e **não altera senha, nome ou conta**. Um login já existente também é recusado; execuções simultâneas são serializadas no banco. A administração posterior de usuários e permissões está disponível em **Administração** após entrar como administrador geral.
+
+## Administrar usuários, empresas e acessos
+
+Entre como administrador geral e abra **Administração** (URL `/administracao`). Crie uma empresa e um usuário com login e senha inicial de 12 a 128 caracteres. O usuário começa sem acessos. Em **Permissões por empresa**, selecione usuário, empresa e **Gerenciamento** ou **Visualização** e clique em **Salvar permissão**. Repita para cada empresa; a concessão substitui o papel anterior naquela empresa. **Revogar acesso** remove somente a concessão selecionada.
+
+Para editar, use **Empresa para editar** ou **Usuário para editar**. Renomear preserva IDs e vínculos. Deixe **Nova senha** vazia para manter a senha atual. Desmarcar **Usuário ativo** e salvar revoga todas as sessões; reativar exige novo login. Trocar a senha também encerra sessões, inclusive a do próprio administrador se ele editar sua senha. O administrador geral é provisionado pelo CLI, acessa todas as empresas e não pode ser desativado pela tela/API; os usuários criados na tela recebem somente papéis por empresa.
+
+Em **Empresas autorizadas** (`/parque?empresa=UUID`), cada usuário vê as empresas e os papéis atuais. Recarregar mantém a seleção; **Atualizar acessos**, voltar ao foco ou a consulta a cada 30 segundos revalida a lista e o contexto. A API consulta o banco em cada requisição: revogação/troca de papel não depende de atualizar a tela ou refazer login. Empresa inexistente ou não autorizada recebe 404; escrita como visualizador recebe 403; sessão inválida ou usuário inativo recebe 401. Todas as operações administrativas são exclusivas do administrador geral.
+
+API: `GET /api/companies`, `GET /api/companies/:companyId`, `GET /api/companies/:companyId/park`; administração em `GET/POST /api/admin/users`, `PATCH /api/admin/users/:userId`, `POST /api/admin/companies`, `PATCH /api/admin/companies/:companyId`, `GET /api/admin/users/:userId/permissions` e `PUT/DELETE /api/admin/users/:userId/permissions/:companyId`. A concessão PUT recebe `{ role: "manager" | "viewer" }`; cadastros de empresa recebem `{ name }`. Payloads públicos nunca devolvem hash ou sessão interna. Exclusão/arquivamento de empresas e os cadastros do parque serão tratados na etapa 05; esta etapa entrega a criação e a renomeação básicas de empresas.
+
+Não há migração nova: as tabelas e constraints de usuários, empresas e permissões já estão na migração 001. `npm run test:access` valida a API com PostgreSQL e banco sintético exclusivo, removido ao terminar. Para futuras rotas do parque, declare `config: { access: 'company' }`, valide `params.companyId` como UUID e use `request.company.id` em todas as consultas, incluindo as referências a filhos; métodos de escrita recusam viewer automaticamente. Rotas sem política explícita são recusadas por padrão.
 
 ## Login, sessão e logout
 
-`POST /api/auth/login` recebe JSON `{ login, password }`; `GET /api/auth/session` retorna apenas usuário público e expiração; `POST /api/auth/logout` revoga a sessão e limpa o cookie. `GET /api/park` é a entrada autenticada, ainda sem cadastros nesta etapa. Sem sessão, sessão/parque retornam HTTP 401 e a interface direciona a `/login`. O healthcheck permanece público. Recarregar preserva uma sessão válida; a tela também revalida ao voltar ao foco e a cada 30 segundos. **Sair** só confirma o logout após a resposta da API.
+`POST /api/auth/login` recebe JSON `{ login, password }`; `GET /api/auth/session` retorna apenas usuário público e expiração; `POST /api/auth/logout` revoga a sessão e limpa o cookie. `GET /api/park` é a entrada autenticada. Sem sessão, sessão/parque retornam HTTP 401 e a interface direciona a `/login`. O healthcheck permanece público. Recarregar preserva uma sessão válida; a tela também revalida ao voltar ao foco e a cada 30 segundos. **Sair** só confirma o logout após a resposta da API.
 
 As sessões duram **8 horas fixas**, sem renovação automática. O servidor verifica expiração pelo relógio do PostgreSQL e atividade do usuário em cada consulta autenticada. Tokens aleatórios de 256 bits ficam apenas no cookie; o banco guarda SHA-256 do token. Um novo login gera outro token e revoga a sessão anterior apresentada pelo mesmo navegador. A senha usa scrypt assíncrono (`N=131072, r=8, p=1`), salt aleatório de 128 bits e comparação em tempo constante. Tokens e senhas não ficam no localStorage e não são devolvidos no JSON.
 
@@ -122,6 +134,7 @@ npm run db:migrate     # aplica somente versões pendentes, sem apagar dados
 npm run test:domain    # contrato e validações de geometria
 npm run test:db        # PostgreSQL real, usando bancos sintéticos separados
 npm run test:auth      # provisionamento, cookies, sessões, expiração, origem e limites
+npm run test:access    # administração e autorização por empresa; PostgreSQL sintético separado
 ```
 
 Cada migração SQL é transacional e registrada com SHA-256 em `schema_migrations`. Um lock no PostgreSQL serializa migradores simultâneos. Falhas revertem a versão inteira; versões anteriores permanecem aplicadas. Não edite arquivos já aplicados: acrescente a próxima versão sequencial. Não há comando de reset/down de esquema.
