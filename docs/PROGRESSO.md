@@ -1,5 +1,7 @@
 # Progresso do desenvolvimento
 
+Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Git. Capturas, logs e relatórios permanecem disponíveis na máquina onde foram gerados; os resultados das verificações continuam registrados neste documento. Os caminhos abaixo são referências locais e não acompanham novas cópias do repositório.
+
 Atualizado em 30/09/2026, às 17:10 (America/Sao_Paulo).
 
 **Estado atual:** etapas 01 a 03 concluídas. Ambiente local saudável, autenticação funcional e parque vazio. O usuário cria seu primeiro administrador por `npm run admin:create`, conforme o README; nenhuma conta foi provisionada no banco de trabalho durante a validação. Próxima etapa: 04, pendente e não iniciada. As seções 01/02 preservam o histórico; o resultado atual está na seção 03.
@@ -83,7 +85,7 @@ Validação real no navegador integrado do Codex, em `http://localhost:5173`:
 - Viewport de celular: **390 × 844**, sem overflow horizontal; botão com aproximadamente **47,6 px** de altura e texto legível. A alteração de viewport foi desfeita ao terminar.
 - Após o ciclo de persistência, a página foi recarregada e mostrou os serviços operacionais. Consulta final de logs de console sem erros ou avisos.
 
-Capturas finais: [interface desktop](evidencias/etapa01/interface-desktop.jpg) e [interface em viewport de celular](evidencias/etapa01/interface-celular.jpg). Estado final dos serviços registrado em [verificacao-final.json](evidencias/etapa01/verificacao-final.json).
+Capturas finais locais: interface desktop (`docs/evidencias/etapa01/interface-desktop.jpg`) e interface em viewport de celular (`docs/evidencias/etapa01/interface-celular.jpg`). Estado final dos serviços registrado em `docs/evidencias/etapa01/verificacao-final.json`.
 
 Typecheck/build, testes locais de API/banco e navegador local foram executados separadamente. Não houve teste em celular físico ou produção. A validação cobre a base local desta etapa, sem afirmar funcionamento dos futuros cadastros, autenticação ou editor.
 
@@ -146,7 +148,7 @@ Os contratos usados foram conferidos nas fontes oficiais: [constraints PostgreSQ
 
 ### Evidências e estado final
 
-Logs: [testes de banco](evidencias/etapa02/testes-banco.txt) e [testes do domínio](evidencias/etapa02/testes-dominio.txt). Estado: [banco/histórico/contagens](evidencias/etapa02/estado-banco.json), [persistência do volume](evidencias/etapa02/persistencia-volume.json) e [serviços/healthcheck final](evidencias/etapa02/verificacao-final.json).
+Logs locais: testes de banco (`docs/evidencias/etapa02/testes-banco.txt`) e testes do domínio (`docs/evidencias/etapa02/testes-dominio.txt`). Estado: banco/histórico/contagens (`docs/evidencias/etapa02/estado-banco.json`), persistência do volume (`docs/evidencias/etapa02/persistencia-volume.json`) e serviços/healthcheck final (`docs/evidencias/etapa02/verificacao-final.json`).
 
 O volume `topologia_new_postgres_data` continua com a data de criação **2026-09-30T17:51:39Z**, igual à etapa 01. Reconstrução dos containers e reinício do banco não removeram o volume. Comparação dos demais containers: **zero diferenças** de IDs/nomes.
 
@@ -222,13 +224,13 @@ O fluxo completo usou **banco exclusivo** `topologia_new_test03_browser_*`, API 
 - Console sem exceções da aplicação. Respostas 401 dos cenários sem sessão são esperadas; o favicon ausente da base ainda retorna 404, sem impedir o fluxo.
 - Após remover o ambiente de QA, o navegador abriu o ambiente do usuário em `http://localhost:5173/parque`, redirecionou para `/login` e mostrou a tela pronta para o administrador que será criado pelo usuário.
 
-Evidências: [testes de autenticação](evidencias/etapa03/testes-autenticacao.txt), [regressão do banco](evidencias/etapa03/testes-banco.txt), [recarga/logout/replay](evidencias/etapa03/navegador-logout.txt), [expiração](evidencias/etapa03/navegador-expiracao.txt), [login desktop](evidencias/etapa03/login-desktop.png), [login celular](evidencias/etapa03/login-celular.png), [parque desktop](evidencias/etapa03/parque-desktop.png), [parque celular](evidencias/etapa03/parque-celular.png) e [tela final no ambiente do usuário](evidencias/etapa03/login-ambiente-usuario.png).
+Evidências locais em `docs/evidencias/etapa03/`: testes de autenticação (`testes-autenticacao.txt`), regressão do banco (`testes-banco.txt`), recarga/logout/replay (`navegador-logout.txt`), expiração (`navegador-expiracao.txt`), login desktop (`login-desktop.png`), login celular (`login-celular.png`), parque desktop (`parque-desktop.png`), parque celular (`parque-celular.png`) e tela final no ambiente do usuário (`login-ambiente-usuario.png`).
 
 ### Estado final e operação
 
-Conferência em 30/09/2026 às 17:09 (America/Sao_Paulo): **zero usuários, sessões, empresas e registros em todas as 15 tabelas de domínio**, além de zero janelas de login no banco de trabalho. **Zero bancos temporários de teste restantes.** O administrador sintético, suas sessões e credencial temporária foram removidos junto com o ambiente de QA. Nenhum dado real foi carregado. [Contagens e histórico](evidencias/etapa03/estado-banco.json).
+Conferência em 30/09/2026 às 17:09 (America/Sao_Paulo): **zero usuários, sessões, empresas e registros em todas as 15 tabelas de domínio**, além de zero janelas de login no banco de trabalho. **Zero bancos temporários de teste restantes.** O administrador sintético, suas sessões e credencial temporária foram removidos junto com o ambiente de QA. Nenhum dado real foi carregado. Contagens e histórico registrados no arquivo local `docs/evidencias/etapa03/estado-banco.json`.
 
-Volume PostgreSQL original preservado, criação **2026-09-30T17:51:39Z**. Permanecem API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` em execução, saudáveis. Interface em `127.0.0.1:5173`; API/banco sem portas publicadas. Healthcheck HTTP 200 com database up; parque sem sessão HTTP 401. [Estado final dos serviços](evidencias/etapa03/verificacao-final.json).
+Volume PostgreSQL original preservado, criação **2026-09-30T17:51:39Z**. Permanecem API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` em execução, saudáveis. Interface em `127.0.0.1:5173`; API/banco sem portas publicadas. Healthcheck HTTP 200 com database up; parque sem sessão HTTP 401. Estado final dos serviços registrado no arquivo local `docs/evidencias/etapa03/verificacao-final.json`.
 
 Para criar seu administrador, na raiz do projeto:
 

@@ -1,9 +1,0 @@
-### Result
-{"pathAfterReload":"/parque","cookie":{"httpOnly":true,"sameSite":"Strict","secure":false,"path":"/"},"parkBefore":200,"replayAfterLogout":401,"sessionAfterLogout":401,"pathAfterLogout":"/login","cookiesAfterLogout":0}
-### Ran Playwright code
-```js
-await (async (page) => { await page.getByRole("heading", {name:"Parque de infraestrutura"}).waitFor(); const cookie = (await page.context().cookies()).find(c => c.name === "topologia_session"); if (!cookie || !cookie.httpOnly || cookie.sameSite !== "Strict") throw new Error("Cookie inválido"); const before = await page.request.get("http://localhost:5174/api/park"); const reloaded = new URL(page.url()).pathname; await page.getByRole("button", {name:"Sair",exact:true}).click(); await page.getByRole("heading", {name:"Entrar na aplicação"}).waitFor(); const replay = await page.request.get("http://localhost:5174/api/park",{headers:{Cookie:cookie.name+"="+cookie.value}}); const after = await page.request.get("http://localhost:5174/api/auth/session"); if(before.status()!==200 || replay.status()!==401 || after.status()!==401) throw new Error("Logout inválido"); return {pathAfterReload:reloaded,cookie:{httpOnly:cookie.httpOnly,sameSite:cookie.sameSite,secure:cookie.secure,path:cookie.path},parkBefore:before.status(),replayAfterLogout:replay.status(),sessionAfterLogout:after.status(),pathAfterLogout:new URL(page.url()).pathname,cookiesAfterLogout:(await page.context().cookies()).length}; })(page);
-```
-### Page
-- Page URL: http://localhost:5174/login
-- Page Title: Topologia New

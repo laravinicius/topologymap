@@ -1,10 +1,46 @@
+# Dependências e arquivos compilados
 node_modules/
 dist/
 *.tsbuildinfo
+
+# Configuração local; o modelo sem credenciais permanece versionado
 .env
 .env.*
 !.env.example
-*.log
+
+# Evidências locais e resultados de testes
+/docs/evidencias/
 .playwright-cli/
 output/playwright/
+playwright-report/
+test-results/
+coverage/
+.nyc_output/
+
+# Logs, caches e arquivos temporários
+*.log
+.cache/
+.vite/
+.tmp/
+tmp/
+temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Backups locais e dumps; migrações .sql continuam versionadas
+backup/
+backups/
+*.bak
+*.backup
+*.dump
+*.sql.gz
+*.sql.bz2
+*.sql.xz
+
+# Arquivos gerados pelo sistema operacional
 .DS_Store
+Thumbs.db
+Desktop.ini

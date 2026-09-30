@@ -1,6 +1,0 @@
-### Result
-{"parkAfterExpiry":401,"sessionAfterExpiry":401,"pathAfterReload":"/login","cookiesAfterExpiry":0}
-### Ran Playwright code
-```js
-await (async (page) => { const park = await page.request.get("http://localhost:5174/api/park"); const session = await page.request.get("http://localhost:5174/api/auth/session"); if (park.status() !== 401 || session.status() !== 401 || !page.url().endsWith("/login")) throw new Error("Expiração inválida"); return {parkAfterExpiry:park.status(),sessionAfterExpiry:session.status(),pathAfterReload:new URL(page.url()).pathname,cookiesAfterExpiry:(await page.context().cookies()).length}; })(page);
-```
