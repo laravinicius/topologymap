@@ -1,8 +1,8 @@
 # Progresso do desenvolvimento
 
-Atualizado em 30/09/2026, às 15:55 (America/Sao_Paulo).
+Atualizado em 30/09/2026, às 17:10 (America/Sao_Paulo).
 
-**Estado atual:** etapas 01 e 02 concluídas. Ambiente local saudável, esquema aplicado e parque vazio. Próxima etapa: 03, ainda pendente. A seção 01 preserva o histórico da entrega inicial; o resultado atual está na seção 02.
+**Estado atual:** etapas 01 a 03 concluídas. Ambiente local saudável, autenticação funcional e parque vazio. O usuário cria seu primeiro administrador por `npm run admin:create`, conforme o README; nenhuma conta foi provisionada no banco de trabalho durante a validação. Próxima etapa: 04, pendente e não iniciada. As seções 01/02 preservam o histórico; o resultado atual está na seção 03.
 
 ## Etapa 01 — Workspace e Docker local
 
@@ -170,3 +170,75 @@ npm run test:db
 Para parar preservando volumes: `npm run dev:stop`; para retomar: `npm run dev:all`. O esquema não é migrado automaticamente na subida; execute `npm run db:migrate` para aplicar novas versões. Nunca use `down -v` para atualizar o banco.
 
 **Pendências da etapa 02: nenhuma.** Próxima etapa: **03 — Administrador, login e sessões**, somente mediante nova solicitação. Nenhum commit, publicação ou etapa posterior foi iniciado; a pasta continua sem repositório Git.
+
+## Etapa 03 — Administrador, login e sessões
+
+**Situação: Concluída.** Autenticação real disponível em [http://localhost:5173/login](http://localhost:5173/login). Etapas 04 a 21 permanecem pendentes, sem implementação de administração de usuários, empresas ou permissões.
+
+### Resultado e arquivos principais
+
+- `apps/api/src/auth/{password,config,provision,admin-cli}.ts`: scrypt assíncrono, origens explícitas e bootstrap interativo. Senha oculta, confirmação e validações, sem senha padrão ou credencial em argumentos/env. Advisory lock transacional serializa dois provisionamentos; administrador existente, inclusive inativo, ou login ocupado impede alterações.
+- `apps/api/src/app.ts`: aplicação testável, hook central de autenticação, login/logout/consulta de sessão e entrada protegida `/api/park`. Servidor mantém healthcheck público, erros genéricos e logs sem cookies/senhas. Todas as escritas exigem origem permitida e rejeitam Fetch Metadata cross-site.
+- `packages/domain/src/auth.ts`: contratos públicos de login/usuário/sessão sem hashes ou token. Sessões PostgreSQL com expiração fixa de 8 horas; cookie HttpOnly/SameSite Strict/Path=/, sem Domain; Secure e prefixo `__Host-` em produção, que exige origens HTTPS.
+- `database/migrations/003_login_limits.sql`: janelas persistidas, sem alterar 001/002. Cinco tentativas por login e vinte por IP em 15 minutos, incluindo sucesso, com upsert atômico, contagem saturada e Retry-After. Hash das chaves; máximo de duas verificações de senha simultâneas por processo.
+- `apps/web/src/{App,HealthPanel}.tsx` e `style.css`: login com rótulos, campos/autocomplete, foco, feedback/erro e acesso autenticado com Sair. Restauração da sessão ao carregar, expiração, revalidação por foco/30 segundos e proteção contra respostas antigas durante login/logout. HealthPanel preserva a consulta do ambiente depois de entrar. Nenhum token em localStorage.
+- `apps/api/test/auth.test.ts`: testes em PostgreSQL isolado. `test/browser-server.ts`: servidor opcional de QA que cria/remove somente banco exclusivo e arquivo de credencial sintética ignorado; não provisiona administrador automaticamente.
+- README, arquitetura, plano, documentação do banco, Compose e ignores atualizados. `@fastify/cookie` 11.1.2 fixado no lockfile; scrypt usa `node:crypto`, sem biblioteca nativa adicional. Typecheck da raiz compila o domínio antes de consumir seus contratos.
+
+UI/UX Pro Max foi aplicada à autenticação acessível: rótulos, autocomplete para gerenciadores, colagem permitida, foco visível, feedback e controles grandes. Playwright CLI conduziu Chromium real. Mantida a aparência simples existente; identidade Microgate permanece na etapa 18.
+
+### Verificações executadas
+
+| Camada | Comando/procedimento | Resultado |
+|---|---|---|
+| Dependências 01/02 | Compose, healthcheck, esquema e status atuais | Serviços saudáveis; migrações anteriores aplicadas e banco vazio antes da entrega. |
+| Migração no volume existente | `npm run db:migrate`; `npm run db:status` | 003 aplicada sem reset; 001/002 inalteradas; três versões applied. |
+| Banco novo e upgrade com dados | `npm run test:db` | **35/35** aprovados, incluindo instalação/reaplicação, preservação dos dados anteriores, esquema igual, checksums, rollback e concorrência. |
+| Hash e bootstrap | `npm run test:auth` | Salt individual, senha correta/incorreta, duas provisões concorrentes com exatamente um sucesso, repetição e administrador inativo sem substituição. |
+| Sessões e API | Mesmo teste, PostgreSQL real | Sessão de 8 horas com somente token hash no banco; payload público; login/consulta; sem sessão e cookie malformado recebem 401. |
+| Persistência e rotação | Fechar/reconstruir Fastify com o mesmo banco; novo login com cookie anterior | Sessão continua válida após reconstrução; token novo é diferente e token anterior recebe 401. |
+| Logout | Origem externa e depois origem válida; replay do cookie antigo | Origem externa recebe 403 sem revogar; logout válido 204, revoked_at preenchido, cookie limpo e token anterior 401. Logout repetido é idempotente. |
+| Expiração e desativação | Expirar sessão no banco de teste; desativar usuário | Consulta/parque 401, cookie limpo; usuário inativo não autentica nem acessa pela sessão existente. |
+| CSRF/origem | Escritas login/logout/rota futura sem Origin, null, outra origem e cross-site | HTTP 403 antes de criar sessões. Entradas inválidas/oversized não ecoam credenciais. |
+| Limitação | Exceder login/IP; reconstruir API; vencer janela; requisições concorrentes com X-Forwarded-For diferente | 429/Retry-After, persistência após reinício, liberação pela janela e somente uma última tentativa concorrente admitida. Header não altera o IP confiado. |
+| Configuração de produção | App de teste com origem HTTPS; configuração com HTTP/sem origem | Cookie __Host-/Secure/HttpOnly sem Domain; configuração HTTP/ausente recusada. Não equivale a implantação HTTPS. |
+| Total de autenticação | `npm run test:auth` | **15/15** aprovados, 14 subtestes mais teste principal; bancos removidos. |
+| Domínio | `npm run test:domain` | **4/4** aprovados. |
+| Typecheck/build | Raiz no host; `docker compose exec -T api npm run typecheck` / `npm run build` | Aprovados em Windows e Linux. Build Linux final: JS 226,17 kB / 70,76 kB gzip. |
+| Imagens e configuração | `docker compose config --quiet`; `npm run dev:all` | Imagens reconstruídas pelo lockfile e três serviços saudáveis. Volume e exposição somente local preservados. |
+| Arquivos | `git diff --check`; ignores de `.env`, CLI e QA | Sem erro de whitespace. Credenciais sintéticas/estado do navegador ficam fora do Git e do contexto Docker. |
+
+### Validação real no navegador
+
+O fluxo completo usou **banco exclusivo** `topologia_new_test03_browser_*`, API temporária interna na porta 3002 e Vite temporário em `127.0.0.1:5174`. O administrador sintético foi criado **pelo próprio CLI interativo**, com entrada oculta e confirmação. Executar o CLI novamente produziu erro de administrador existente; não houve alteração de senha. O usuário deve repetir o procedimento documentado no README para criar sua conta no banco de trabalho.
+
+- Acesso direto a `/parque` sem sessão redirecionou para `/login`; consulta direta da API retornou 401.
+- Login incorreto mostrou **Login ou senha inválidos.**, limpou o campo de senha e manteve o formulário.
+- Login válido exibiu **Administrador geral** e a entrada do parque. Recarregar permaneceu em `/parque`, com a mesma sessão válida consultada no PostgreSQL.
+- Cookie observado no navegador: HttpOnly, SameSite Strict, Path=/, Secure false no HTTP local; `document.cookie` vazio. Flags de produção verificadas separadamente no teste da API.
+- **Sair** voltou ao login, removeu o cookie e retornou 401 na consulta da sessão. Replay explícito do token anterior também retornou 401 no parque; recarregar continuou no login.
+- A expiração foi simulada alterando created_at/expires_at **somente no banco de QA**, respeitando a constraint temporal. Recarregar retornou ao login, sessão/parque responderam 401 e não restou cookie. Não foi necessário esperar 8 horas para testar o relógio do banco.
+- Viewports **1280 × 900** e **390 × 844**: login legível, sem overflow horizontal, foco visível e inputs/botão com 48 px. Entrada autenticada e Sair também conferidos nos dois tamanhos; a página tem rolagem vertical normal.
+- Console sem exceções da aplicação. Respostas 401 dos cenários sem sessão são esperadas; o favicon ausente da base ainda retorna 404, sem impedir o fluxo.
+- Após remover o ambiente de QA, o navegador abriu o ambiente do usuário em `http://localhost:5173/parque`, redirecionou para `/login` e mostrou a tela pronta para o administrador que será criado pelo usuário.
+
+Evidências: [testes de autenticação](evidencias/etapa03/testes-autenticacao.txt), [regressão do banco](evidencias/etapa03/testes-banco.txt), [recarga/logout/replay](evidencias/etapa03/navegador-logout.txt), [expiração](evidencias/etapa03/navegador-expiracao.txt), [login desktop](evidencias/etapa03/login-desktop.png), [login celular](evidencias/etapa03/login-celular.png), [parque desktop](evidencias/etapa03/parque-desktop.png), [parque celular](evidencias/etapa03/parque-celular.png) e [tela final no ambiente do usuário](evidencias/etapa03/login-ambiente-usuario.png).
+
+### Estado final e operação
+
+Conferência em 30/09/2026 às 17:09 (America/Sao_Paulo): **zero usuários, sessões, empresas e registros em todas as 15 tabelas de domínio**, além de zero janelas de login no banco de trabalho. **Zero bancos temporários de teste restantes.** O administrador sintético, suas sessões e credencial temporária foram removidos junto com o ambiente de QA. Nenhum dado real foi carregado. [Contagens e histórico](evidencias/etapa03/estado-banco.json).
+
+Volume PostgreSQL original preservado, criação **2026-09-30T17:51:39Z**. Permanecem API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` em execução, saudáveis. Interface em `127.0.0.1:5173`; API/banco sem portas publicadas. Healthcheck HTTP 200 com database up; parque sem sessão HTTP 401. [Estado final dos serviços](evidencias/etapa03/verificacao-final.json).
+
+Para criar seu administrador, na raiz do projeto:
+
+```powershell
+npm run db:migrate
+npm run admin:create
+```
+
+Informe nome/login e uma senha própria no terminal; não coloque a credencial em arquivos versionáveis. Abra [http://localhost:5173/login](http://localhost:5173/login), entre, recarregue e use **Sair**. O procedimento completo e as configurações de cookie/origem/limites estão no [README](../README.md#criar-seu-primeiro-administrador).
+
+Parar preservando volumes: `npm run dev:stop`. Retomar: `npm run dev:all`. O repositório Git estava limpo no começo desta etapa; não houve commit, push ou publicação. Os registros de inexistência de Git nas etapas anteriores são históricos.
+
+Typecheck/build, testes de API/PostgreSQL e navegador local são evidências distintas. Não houve teste em celular físico nem produção. **Pendências da etapa 03: nenhuma. Próxima etapa: 04 — Usuários e permissões por empresa, pendente e não iniciada.**

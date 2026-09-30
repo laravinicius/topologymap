@@ -30,6 +30,7 @@ services:
       DATABASE_USER: ${POSTGRES_USER:-topologia_new}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
       FILES_DIR: /data/files
+      APP_ORIGINS: ${APP_ORIGINS:-http://localhost:${WEB_PORT:-5173},http://127.0.0.1:${WEB_PORT:-5173}}
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "300"
     volumes:

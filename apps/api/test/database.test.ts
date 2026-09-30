@@ -110,13 +110,13 @@ test('etapa 02: migrações e integridade em PostgreSQL real, com bancos sintét
     const fresh = await database('fresh');
     const upgrade = await database('upgrade');
     await t.test('banco novo: status não cria tabelas; apply e reaplicação', async () => {
-      assert.deepEqual((await runMigrations(fresh, { statusOnly: true })).map(x => x.state), ['pending', 'pending']);
+      assert.deepEqual((await runMigrations(fresh, { statusOnly: true })).map(x => x.state), ['pending', 'pending', 'pending']);
       assert.equal((await fresh.query("SELECT count(*)::int AS count FROM information_schema.tables WHERE table_schema='public'")).rows[0].count, 0);
       await runMigrations(fresh); await runMigrations(fresh);
-      assert.equal((await fresh.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 2);
-      assert.deepEqual((await runMigrations(fresh, { statusOnly: true })).map(x => x.state), ['applied', 'applied']);
+      assert.equal((await fresh.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 3);
+      assert.deepEqual((await runMigrations(fresh, { statusOnly: true })).map(x => x.state), ['applied', 'applied', 'applied']);
     });
-    await t.test('banco inicializado: 001 com dados -> 002, preservação e esquema igual ao banco novo', async () => {
+    await t.test('banco inicializado: 001 com dados -> 002/003, preservação e esquema igual ao banco novo', async () => {
       const directory = await mkdtemp(join(tmpdir(), 'topologia-stage02-upgrade-')); directories.push(directory);
       await cp(join(migrationsDirectory, '001_access_hierarchy.sql'), join(directory, '001_access_hierarchy.sql'));
       await runMigrations(upgrade, { directory });
@@ -146,9 +146,9 @@ test('etapa 02: migrações e integridade em PostgreSQL real, com bancos sintét
       await writeFile(join(directory, '001_access_hierarchy.sql'), '-- alterado\n', { flag: 'a' });
       await assert.rejects(runMigrations(fresh, { directory }), /Histórico divergente/);
       await cp(join(migrationsDirectory, '001_access_hierarchy.sql'), join(directory, '001_access_hierarchy.sql'));
-      await rm(join(directory, '002_racks_connections.sql'));
+      await rm(join(directory, '003_login_limits.sql'));
       await assert.rejects(runMigrations(fresh, { directory }), /Histórico divergente/);
-      assert.equal((await fresh.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 2);
+      assert.equal((await fresh.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 3);
     });
     await t.test('falha SQL reverte DDL e histórico da migração; correção permite retomar', async () => {
       const rollback = await database('rollback');
@@ -166,7 +166,7 @@ test('etapa 02: migrações e integridade em PostgreSQL real, com bancos sintét
     await t.test('dois migradores simultâneos aplicam cada versão uma única vez', async () => {
       const concurrent = await database('migrators');
       await Promise.all([runMigrations(concurrent), runMigrations(concurrent)]);
-      assert.equal((await concurrent.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 2);
+      assert.equal((await concurrent.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 3);
     });
 
     const a = await fixture(fresh, 'A'), b = await fixture(fresh, 'B');

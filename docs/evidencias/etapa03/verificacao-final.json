@@ -1,0 +1,51 @@
+{
+  "checkedAt": "2026-09-30T20:09:52.0321421Z",
+  "health": {
+    "status": "ok",
+    "service": "topologia_new",
+    "database": "up",
+    "checkedAt": "2026-09-30T20:09:54.166Z"
+  },
+  "unauthenticatedParkStatus": 401,
+  "postgresVolume": {
+    "Name": "topologia_new_postgres_data",
+    "CreatedAt": "2026-09-30T17:51:39Z"
+  },
+  "services": [
+    {
+      "Name": "topologia_new",
+      "Service": "api",
+      "State": "running",
+      "Health": "healthy",
+      "Publishers": []
+    },
+    {
+      "Name": "topologia_new_db",
+      "Service": "db",
+      "State": "running",
+      "Health": "healthy",
+      "Publishers": [
+        {
+          "URL": "",
+          "TargetPort": 5432,
+          "PublishedPort": 0,
+          "Protocol": "tcp"
+        }
+      ]
+    },
+    {
+      "Name": "topologia_new_web",
+      "Service": "web",
+      "State": "running",
+      "Health": "healthy",
+      "Publishers": [
+        {
+          "URL": "127.0.0.1",
+          "TargetPort": 5173,
+          "PublishedPort": 5173,
+          "Protocol": "tcp"
+        }
+      ]
+    }
+  ]
+}

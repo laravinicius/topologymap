@@ -6,4 +6,5 @@ dist/
 !.env.example
 *.log
 .playwright-cli/
+output/playwright/
 .DS_Store

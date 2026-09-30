@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-09-30T20:09:51.771Z",
+  "counts": {
+    "users": 0,
+    "sessions": 0,
+    "companies": 0,
+    "company_permissions": 0,
+    "units": 0,
+    "floors": 0,
+    "plans": 0,
+    "sectors": 0,
+    "desks": 0,
+    "points": 0,
+    "datacenters": 0,
+    "racks": 0,
+    "equipment": 0,
+    "ports": 0,
+    "connections": 0,
+    "login_limits": 0
+  },
+  "migrations": [
+    {
+      "version": 1,
+      "name": "001_access_hierarchy.sql"
+    },
+    {
+      "version": 2,
+      "name": "002_racks_connections.sql"
+    },
+    {
+      "version": 3,
+      "name": "003_login_limits.sql"
+    }
+  ],
+  "remainingTests": []
+}

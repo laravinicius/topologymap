@@ -1,6 +1,6 @@
 # Arquitetura e plano de implementação
 
-Status: etapas 01 e 02 implementadas e validadas localmente; demais funcionalidades continuam como proposta técnica. Atualizado em 30/09/2026. Evidências em [PROGRESSO.md](PROGRESSO.md).
+Status: etapas 01 a 03 implementadas e validadas localmente; demais funcionalidades continuam como proposta técnica. Atualizado em 30/09/2026. Evidências em [PROGRESSO.md](PROGRESSO.md).
 
 Os requisitos confirmados e os detalhes propostos estão separados em [ESCOPO.md](ESCOPO.md).
 
@@ -71,7 +71,7 @@ Alterações destrutivas precisam indicar dependências. Não eliminar conexões
 
 Ocupação em U usa `int8range` gerado e exclusão GiST (`btree_gist`). A capacidade é protegida por testemunho interno `equipment.rack_capacity_u`, FK para a capacidade real do rack com ON UPDATE CASCADE e CHECK de limites na mesma linha. Essa escolha acrescenta redundância controlada para garantir redução/instalação/movimentação concorrentes de forma declarativa, inclusive diante de snapshots antigos. Não se usa CHECK que consulta outro registro nem validação baseada somente em leitura prévia. Contratos e exemplo de escrita estão em [database/README.md](../database/README.md).
 
-Usuários, sessões e permissões têm estrutura, sem provisão de administrador ou autenticação. A autorização central da API continua nas etapas 03/04. A tabela única de conexões já tem FKs, unicidades e revisão automática; operações de associação/transferência com estado esperado continuam na etapa 08.
+Usuários, sessões e permissões receberam estrutura na etapa 02. A autenticação central e o provisionamento explícito foram implementados na etapa 03; administração e autorização por empresa continuam na etapa 04. A tabela única de conexões já tem FKs, unicidades e revisão automática; operações de associação/transferência com estado esperado continuam na etapa 08.
 
 ## 4. Geometria e editor
 
@@ -87,9 +87,15 @@ Salvar o layout com número de revisão. Se outra sessão já alterou a revisão
 
 ## 5. Autenticação e publicação da mesa
 
-Proposta: sessões persistidas no banco e cookie HttpOnly, com configuração Secure em produção, proteção das operações de escrita contra requisições de outra origem e limitação de tentativas de login.
+**Implementado na etapa 03:** sessões PostgreSQL com duração fixa de 8 horas, token aleatório de 256 bits e somente SHA-256 do token persistido. Cookie HttpOnly/SameSite Strict/Path=/, sem Domain; em produção, Secure e prefixo `__Host-`. `APP_ORIGINS` contém origens exatas; `NODE_ENV=production` exige origens HTTPS. Todas as escritas passam pela verificação de Origin e Fetch Metadata antes da autenticação ou validação do corpo. Não há CORS permissivo. Login/logout são as únicas escritas públicas; todas as outras rotas da API exigem sessão por padrão, exceto o GET/HEAD de healthcheck.
 
-Provisionar o primeiro administrador explicitamente, com credencial configurada localmente e sem senha padrão publicada no repositório. A administração de usuários e permissões é exclusiva do administrador geral.
+`apps/api/src/app.ts` centraliza o hook de autenticação, consulta da atividade do usuário e erros públicos sem dados internos. Login revalida atividade/hash sob lock antes de criar sessão; novo login revoga o token anterior recebido pelo mesmo navegador. Logout é idempotente, revoga no banco e limpa o cookie mesmo se já expirado. Contratos públicos em `packages/domain/src/auth.ts`; UI em `/login` e `/parque`, com consulta ao carregar/foco/a cada 30 segundos, timer de expiração e proteção contra respostas antigas durante login/logout. Nenhum token é armazenado no localStorage. O parque desta etapa é somente uma entrada protegida, sem CRUD ou lista de empresas.
+
+Senhas usam scrypt nativo assíncrono do Node 24 (`N=2^17, r=8, p=1`, salt aleatório de 16 bytes, chave de 32 bytes e timingSafeEqual). A escolha evita dependências nativas adicionais e usa os parâmetros recomendados para scrypt pela [OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). Foram conferidos os contratos de [node:crypto](https://nodejs.org/docs/latest-v24.x/api/crypto.html), [hooks Fastify](https://fastify.dev/docs/latest/Reference/Hooks/) e [@fastify/cookie](https://github.com/fastify/fastify-cookie); a única dependência externa nova é `@fastify/cookie` 11.1.2, compatível com Fastify 5 e fixa no lockfile.
+
+Migração aditiva `003_login_limits.sql`: janelas persistidas de 15 minutos, 5 tentativas/login e 20/IP, incluindo sucesso; chaves SHA-256, upsert atômico, contagem saturada e Retry-After. Janelas vencidas são reutilizadas e removidas no login bem-sucedido. Limites sobrevivem ao reinício da API; não há Redis. Até duas verificações de senha simultâneas por processo limitam a memória do scrypt. O proxy Vite local compartilha seu IP entre navegadores; trustProxy permanece false. A configuração dos proxies confiáveis de produção pertence à publicação, sem aceitar X-Forwarded-For arbitrário nesta etapa.
+
+`npm run admin:create` provisiona o primeiro administrador por terminal interativo, com senha oculta e confirmação, sem argumentos/env de credencial. Advisory lock transacional serializa bootstrap concorrente. Administrador existente, inclusive inativo, ou login já cadastrado impede a criação e preserva dados/senha. Não há conta padrão, seed ou bootstrap no startup; procedimento em [README](../README.md#criar-seu-primeiro-administrador). A administração posterior de usuários e permissões é exclusiva do administrador geral e continua na etapa 04.
 
 A consulta pública terá endpoint e resposta próprios. O identificador do QR Code não será um ID sequencial da mesa. A resposta pública trará apenas os campos definidos no escopo, sem reutilizar o payload interno completo. Permitir desativar e renovar o endereço.
 
@@ -136,7 +142,8 @@ Ferramenta da etapa 02: `npm run db:migrate` / `npm run db:status`, execução e
 
 - [x] **Base local (etapa 01):** workspace, dependências, Compose, banco persistente, healthcheck e comandos de operação.
 - [x] **Domínio e migrações (etapa 02):** contratos, esquema e migrações versionadas, sem reset dos volumes; restrições concorrentes validadas em PostgreSQL real.
-- [ ] **Acesso:** provisionamento do administrador, login, usuários e permissões por empresa; testar isolamento.
+- [x] **Autenticação (etapa 03):** primeiro administrador explícito, login/logout, sessões persistidas, expiração, proteção de origem e limites; API/banco e navegador local validados em dados sintéticos separados.
+- [ ] **Usuários e permissões (etapa 04):** administração global, acessos por empresa e testes de isolamento; autenticação da etapa 03 já concluída.
 - [ ] **Cadastros e conexões:** hierarquia completa, criação em lote de pontos/portas, vínculo único e edição pelas duas extremidades.
 - [ ] **Rack 2D:** capacidade em U, equipamentos genéricos, patch panels, seleção de portas e proteção contra sobreposição.
 - [ ] **Planta 2D:** desenho, setores, importação de fundos, escala, posicionamento, transformações e salvamento com revisão.

@@ -4,7 +4,7 @@ Projeto: Topologia New. Elaborado em 30/09/2026.
 
 **Estado inicial:** documentação criada; aplicação, banco e containers ainda não implementados. Todas as etapas abaixo começam pendentes.
 
-**Estado atual (30/09/2026):** etapas 01 e 02 concluídas, com ambiente local em execução e evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 03 a 21 permanecem pendentes.
+**Estado atual (30/09/2026):** etapas 01 a 03 concluídas, com ambiente local em execução e evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 04 a 21 permanecem pendentes. O administrador de trabalho será criado explicitamente pelo usuário conforme o README.
 
 Este documento transforma [ESCOPO.md](ESCOPO.md) e [IMPLEMENTACAO.md](IMPLEMENTACAO.md) em tarefas executáveis, em ordem, com solicitações prontas para copiar para o agente.
 
@@ -73,7 +73,7 @@ Usar os estados `Pendente`, `Em andamento`, `Concluída` e `Bloqueada`. Marcar b
 |---|---|---|---|
 | 01 | Workspace e Docker local | Documentos atuais | Concluída |
 | 02 | Domínio, banco e migrações | 01 | Concluída |
-| 03 | Administrador, login e sessões | 02 | Pendente |
+| 03 | Administrador, login e sessões | 02 | Concluída |
 | 04 | Usuários e permissões por empresa | 03 | Pendente |
 | 05 | Empresas, unidades, andares, plantas e datacenters | 04 | Pendente |
 | 06 | Mesas e pontos | 05 | Pendente |

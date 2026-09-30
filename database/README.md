@@ -1,6 +1,8 @@
-# Modelo e migrações — etapa 02
+# Modelo e migrações — etapas 02/03
 
 `001_access_hierarchy.sql` cria usuários, sessões, empresas, permissões, unidades, andares, plantas, setores, mesas, pontos e datacenters. `002_racks_connections.sql` cria racks, equipamentos, portas e a fonte única das conexões. Nenhuma migração contém dados ou administrador.
+
+`003_login_limits.sql` acrescenta somente janelas de tentativas de login. As chaves usam namespace IP/login e SHA-256, com contador e expiração; upsert atômico na API protege concorrência e reinícios. As duas migrações anteriores permanecem inalteradas. Provisionamento explícito e operação de autenticação estão no [README](../README.md#criar-seu-primeiro-administrador).
 
 ## Operação
 
@@ -16,7 +18,7 @@ Alterar uma migração aplicada, removê-la ou apresentar um histórico fora da 
 - Nomes de 1 a 200 caracteres, sem aceitar apenas espaços. Unicidade exata, com collation `C`, sem normalizar caixa, zeros, acentos ou espaços. Empresa tem nome único global; os demais nomes são únicos no pai. Pontos e portas têm também ordinal positivo único no pai. Quantidades derivam da contagem de registros, nunca do maior número no nome.
 - `company_id` participa de todas as FKs do parque. Planta referencia empresa/unidade/andar; setor e mesa compartilham a planta. A localização opcional de datacenter/rack referencia uma planta da unidade do cadastro. Um rack pode estar em outra planta da mesma unidade. Um ponto pode se conectar a um datacenter de outra unidade/andar da **mesma empresa**.
 - Administrador geral: `users.is_admin`; desativação: `is_active`. Login único sem distinguir caixa. `company_permissions` tem uma linha por usuário/empresa com `manager` ou `viewer`. Não há concessão automática.
-- Sessões guardam apenas hash hexadecimal SHA-256 do token, usuário, expiração e revogação. O hash de senha é texto para receber o formato seguro escolhido na etapa 03. Os contratos internos com hashes não são DTOs públicos. A autorização efetiva das requisições será implementada nas etapas 03/04; integridade de empresa por FK não concede acesso de usuário.
+- Sessões guardam apenas hash hexadecimal SHA-256 do token, usuário, expiração e revogação. A etapa 03 usa senhas scrypt com salt aleatório e sessões de 8 horas, verificadas na API. Os contratos internos com hashes não são DTOs públicos. A autorização por empresa continua na etapa 04; integridade de empresa por FK não concede acesso de usuário.
 - Exclusão física é `RESTRICT` nas dependências; nada apaga conexões em cascata. Remover pontos/portas ocupados ou pais com filhos falha. Arquivamento e mensagens da API serão definidos nas respectivas etapas de cadastro.
 
 ## Ocupação do rack e concorrência
@@ -46,6 +48,6 @@ SQLSTATE relevantes para os futuros serviços: `23505` (unicidade), `23P01` (sob
 
 ## Verificação
 
-`npm run test:db` usa bancos temporários exclusivos no mesmo PostgreSQL persistente. Testa instalação nova, atualização 001 → 002 com dados em todas as tabelas anteriores, igualdade de esquema, reaplicação, checksum, rollback e dois migradores simultâneos. Testa relações entre empresas, filiação, nomes, geometria, dependências, U e conexão única.
+`npm run test:db` usa bancos temporários exclusivos no mesmo PostgreSQL persistente. Testa instalação nova, atualização 001 → 002/003 com dados em todas as tabelas anteriores, igualdade de esquema, reaplicação, checksum, rollback e dois migradores simultâneos. Testa relações entre empresas, filiação, nomes, geometria, dependências, U e conexão única. `npm run test:auth` valida o comportamento real de autenticação em banco exclusivo, incluindo bootstrap concorrente, expiração, logout, persistência de sessão/limites, rotação de token, origens e cookies.
 
 Os testes concorrentes usam duas transações e comprovam que a segunda sessão aguarda um lock real em `pg_stat_activity` antes de confirmar a primeira. Cobrem ponto, porta, sobreposição e redução contra INSERT/UPDATE, nos dois sentidos, incluindo um snapshot em REPEATABLE READ. Dados sintéticos e bancos de teste são removidos ao terminar. Não há acesso ao levantamento legado.

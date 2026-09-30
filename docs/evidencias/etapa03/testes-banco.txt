@@ -1,0 +1,52 @@
+
+> topologia-new@0.1.0 test:db
+> docker compose exec -T api npm run test:db --workspace @topologia-new/api
+
+
+> @topologia-new/api@0.1.0 test:db
+> tsx --test --test-concurrency=1 test/database.test.ts
+
+▶ etapa 02: migrações e integridade em PostgreSQL real, com bancos sintéticos isolados
+  ✔ banco novo: status não cria tabelas; apply e reaplicação (140.628759ms)
+  ✔ banco inicializado: 001 com dados -> 002/003, preservação e esquema igual ao banco novo (132.616058ms)
+  ✔ checksum divergente impede execução e arquivo ausente não é aceito (36.323387ms)
+  ✔ falha SQL reverte DDL e histórico da migração; correção permite retomar (44.557756ms)
+  ✔ dois migradores simultâneos aplicam cada versão uma única vez (115.284367ms)
+  ✔ usuário pode ter papéis distintos; sessão e permissões têm restrições (43.966113ms)
+  ✔ isolamento entre empresas: andar (9.346376ms)
+  ✔ isolamento entre empresas: planta (11.597583ms)
+  ✔ isolamento entre empresas: setor (9.662317ms)
+  ✔ isolamento entre empresas: mesa (9.001236ms)
+  ✔ isolamento entre empresas: ponto (8.19068ms)
+  ✔ isolamento entre empresas: datacenter (8.531919ms)
+  ✔ isolamento entre empresas: rack (7.454474ms)
+  ✔ isolamento entre empresas: equipamento (7.094494ms)
+  ✔ isolamento entre empresas: porta (6.304326ms)
+  ✔ isolamento entre empresas: conexão pelo ponto (7.9727ms)
+  ✔ isolamento entre empresas: conexão pela porta (6.825142ms)
+  ✔ UPDATE também não pode mover filho para pai de outra empresa (14.013864ms)
+  ✔ filiação: planta/andar, setor/planta e localização de rack/DC na mesma unidade (45.50096ms)
+  ✔ nomes únicos no pai; grafias, zeros e nomes iguais em pais diferentes preservados (72.584243ms)
+  ✔ conexão única, consulta inversa, renomeação/posição preserva IDs e vínculos, andares distintos permitidos (26.821162ms)
+  ✔ dependências impedem exclusão de ponto, porta, mesa, equipamento, rack e pais (66.722423ms)
+  ✔ U positivas/inteiras, múltiplas U, adjacência, sobreposição e capacidade real (79.61163ms)
+  ✔ somente patch panels têm portas; quantidade deriva de registros, ordinal e nome únicos (36.38009ms)
+  ✔ geometria persistida exige metros, dimensão/rotação válida e referências de parede (71.877295ms)
+  ✔ concorrência: duas associações à mesma porta -> apenas a primeira (25.965644ms)
+  ✔ concorrência: duas associações ao mesmo ponto -> apenas a primeira (5.767888ms)
+  ✔ concorrência: equipamentos sobrepostos -> apenas o primeiro (27.978263ms)
+  ✔ concorrência: instalação vence redução de capacidade -> redução rejeitada (7.424106ms)
+  ✔ concorrência: redução vence instalação com capacidade antiga -> FK rejeita inserção (6.235912ms)
+  ✔ snapshot antigo (REPEATABLE READ): redução concorrente revalida e rejeita capacidade insuficiente (7.196175ms)
+  ✔ concorrência: mover equipamento para U alta impede redução simultânea (7.634613ms)
+  ✔ concorrência: redução vence movimentação para U alta, sem gravação fora do rack (6.488059ms)
+  ✔ estado final: nenhum equipamento fora da capacidade e nenhuma sobreposição (1.489307ms)
+✔ etapa 02: migrações e integridade em PostgreSQL real, com bancos sintéticos isolados (1636.325991ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1883.200647

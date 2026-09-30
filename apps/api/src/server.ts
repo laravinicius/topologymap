@@ -1,7 +1,8 @@
-import Fastify from 'fastify';
 import pg from 'pg';
 import { mkdir } from 'node:fs/promises';
 import { databaseConfig } from './database/config.js';
+import { buildApp } from './app.js';
+import { authConfig } from './auth/config.js';
 
 const pool = new pg.Pool({
   ...databaseConfig(),
@@ -10,24 +11,9 @@ const pool = new pg.Pool({
   query_timeout: 2000,
 });
 
-const app = Fastify({ logger: true });
+const app = await buildApp(pool, authConfig(), true);
 pool.on('error', () => app.log.warn('Conexão ociosa com PostgreSQL interrompida.'));
 await mkdir(process.env.FILES_DIR ?? '/data/files', { recursive: true });
-
-app.get('/api/health', async (_request, reply) => {
-  let database: 'up' | 'down' = 'up';
-  try {
-    await pool.query('SELECT 1');
-  } catch {
-    database = 'down';
-  }
-  return reply.code(database === 'up' ? 200 : 503).send({
-    status: database === 'up' ? 'ok' : 'degraded',
-    service: 'topologia_new',
-    database,
-    checkedAt: new Date().toISOString(),
-  });
-});
 
 app.addHook('onClose', async () => { await pool.end(); });
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
