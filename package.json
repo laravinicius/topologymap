@@ -1,0 +1,22 @@
+{
+  "name": "topologia-new",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24 <25", "npm": ">=11 <12" },
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:all": "docker compose up --build -d --wait",
+    "dev:logs": "docker compose logs -f --tail=100",
+    "dev:stop": "docker compose down",
+    "dev:restart": "docker compose restart",
+    "dev:status": "docker compose ps",
+    "dev:install": "docker compose run --rm --no-deps api npm ci --no-audit --no-fund",
+    "typecheck": "npm run typecheck --workspaces",
+    "build": "npm run build --workspace @topologia-new/domain && npm run build --workspace @topologia-new/api && npm run build --workspace @topologia-new/web",
+    "db:migrate": "docker compose exec -T api npm run db:migrate --workspace @topologia-new/api",
+    "db:status": "docker compose exec -T api npm run db:status --workspace @topologia-new/api",
+    "test:domain": "npm run build --workspace @topologia-new/domain && npm run test --workspace @topologia-new/domain",
+    "test:db": "docker compose exec -T api npm run test:db --workspace @topologia-new/api"
+  }
+}

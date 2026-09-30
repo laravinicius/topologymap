@@ -1,0 +1,17 @@
+{
+  "name": "@topologia-new/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:migrate": "tsx src/database/cli.ts apply",
+    "db:status": "tsx src/database/cli.ts status",
+    "test:db": "tsx --test --test-concurrency=1 test/database.test.ts"
+  },
+  "dependencies": { "fastify": "5.12.5", "pg": "8.23.1" },
+  "devDependencies": { "@types/node": "24.19.0", "@types/pg": "8.23.1", "tsx": "4.23.15", "typescript": "7.0.2" }
+}

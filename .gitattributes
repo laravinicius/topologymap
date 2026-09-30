@@ -1,0 +1,2 @@
+# Checksums de migração precisam dos mesmos bytes em Windows e Linux.
+database/migrations/*.sql text eol=lf

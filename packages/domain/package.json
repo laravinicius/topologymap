@@ -1,0 +1,9 @@
+{
+  "name": "@topologia-new/domain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": { "typecheck": "tsc --noEmit", "build": "tsc", "test": "node --test test/geometry.test.mjs" },
+  "devDependencies": { "typescript": "7.0.2" }
+}

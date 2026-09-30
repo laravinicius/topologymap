@@ -1,0 +1,38 @@
+{
+    "database": "topologia_new",
+    "checkedAt": "2026-09-30T18:54:44.378307+00:00",
+    "domainCounts": {
+        "desks": 0,
+        "plans": 0,
+        "ports": 0,
+        "racks": 0,
+        "units": 0,
+        "users": 0,
+        "floors": 0,
+        "points": 0,
+        "sectors": 0,
+        "sessions": 0,
+        "companies": 0,
+        "equipment": 0,
+        "connections": 0,
+        "datacenters": 0,
+        "company_permissions": 0
+    },
+    "postgresVersion": "PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit",
+    "btreeGistVersion": "1.8",
+    "migrationHistory": [
+        {
+            "name": "001_access_hierarchy.sql",
+            "version": 1,
+            "checksum": "8c4b33bfe04efb04b7f2ad1f7fac1f5e8450869bf696a306690747f5f073fede",
+            "applied_at": "2026-09-30T18:40:51.587187+00:00"
+        },
+        {
+            "name": "002_racks_connections.sql",
+            "version": 2,
+            "checksum": "e678ef63d2546fe29503090b9cf49556ea5ace8f6b612e7dc6a5088954bf55dc",
+            "applied_at": "2026-09-30T18:40:51.633148+00:00"
+        }
+    ],
+    "testDatabasesRemaining": 0
+}

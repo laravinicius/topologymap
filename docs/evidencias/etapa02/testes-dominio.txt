@@ -1,0 +1,24 @@
+
+> topologia-new@0.1.0 test:domain
+> npm run build --workspace @topologia-new/domain && npm run test --workspace @topologia-new/domain
+
+
+> @topologia-new/domain@0.1.0 build
+> tsc
+
+
+> @topologia-new/domain@0.1.0 test
+> node --test test/geometry.test.mjs
+
+✔ geometria vazia e medidas em metros independentes de câmera/renderizador (0.6887ms)
+✔ setor exige polígono com vértices distintos e área não nula (0.6708ms)
+✔ aberturas mantêm identidade e pertencem a uma parede, em metros e dentro dela (0.2199ms)
+✔ fundo mantém metadados do arquivo separados da transformação em metros (0.1602ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 74.2375
