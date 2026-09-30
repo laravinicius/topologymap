@@ -9,6 +9,7 @@ export function Administration({ companies, refreshCompanies, checkSession }: { 
   const [name, setName] = useState(''), [login, setLogin] = useState(''), [password, setPassword] = useState('');
   const [isActive, setActive] = useState(true);
   const [companyId, setCompanyId] = useState(''), [companyName, setCompanyName] = useState('');
+  const [deleteCompany, setDeleteCompany] = useState(false);
   const [permissionUser, setPermissionUser] = useState(''), [permissionCompany, setPermissionCompany] = useState('');
   const [role, setRole] = useState<CompanyRole>('viewer');
   const [permissions, setPermissions] = useState<CompanyPermissionView[]>([]);
@@ -63,7 +64,7 @@ export function Administration({ companies, refreshCompanies, checkSession }: { 
     event.preventDefault();
     void perform(async () => {
       await api(companyId ? `/admin/companies/${companyId}` : '/admin/companies', json(companyId ? 'PATCH' : 'POST', { name: companyName }));
-      setCompanyId(''); setCompanyName(''); await refreshCompanies();
+      setCompanyId(''); setCompanyName(''); setDeleteCompany(false); await refreshCompanies();
     }, 'Empresa salva.');
   }
   function grant(event: FormEvent) {
@@ -87,13 +88,23 @@ export function Administration({ companies, refreshCompanies, checkSession }: { 
         <h3 id="companies-title">Empresas</h3>
         <form onSubmit={saveCompany} aria-describedby={error ? 'admin-error' : undefined}>
           <label htmlFor="edit-company">Empresa para editar</label>
-          <select id="edit-company" disabled={disabled} value={companyId} onChange={e => { setCompanyId(e.target.value); setCompanyName(companies.find(c => c.id === e.target.value)?.name ?? ''); }}>
+          <select id="edit-company" disabled={disabled} value={companyId} onChange={e => { setCompanyId(e.target.value); setDeleteCompany(false); setCompanyName(companies.find(c => c.id === e.target.value)?.name ?? ''); }}>
             <option value="">Nova empresa</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <label htmlFor="company-name">Nome da empresa</label>
           <input id="company-name" required maxLength={200} value={companyName} onChange={e => setCompanyName(e.target.value)} disabled={disabled} />
           <button disabled={disabled} type="submit">{companyId ? 'Salvar empresa' : 'Criar empresa'}</button>
+          {companyId && <button type="button" className="secondary" disabled={disabled} onClick={() => setDeleteCompany(true)}>Excluir empresa</button>}
         </form>
+        {companyId && deleteCompany && <div className="delete-confirm" role="group" aria-label="Confirmar exclusão da empresa">
+          <p>Excluir <strong>{companies.find(c => c.id === companyId)?.name}</strong> definitivamente? Remova seus cadastros e revogue seus acessos antes. A exclusão não remove dependências automaticamente.</p>
+          <button disabled={disabled} onClick={() => void perform(async () => {
+            await api(`/admin/companies/${companyId}`, { method: 'DELETE' });
+            setCompanyId(''); setCompanyName(''); setDeleteCompany(false); setPermissionCompany('');
+            setPermissions(current => current.filter(p => p.companyId !== companyId)); await refreshCompanies();
+          }, 'Empresa excluída.')}>Confirmar exclusão da empresa</button>
+          <button className="secondary" disabled={disabled} onClick={() => setDeleteCompany(false)}>Cancelar exclusão da empresa</button>
+        </div>}
         {!companies.length && <p>Nenhuma empresa cadastrada.</p>}
       </section>
       <section aria-labelledby="users-title">

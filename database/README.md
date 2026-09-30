@@ -48,6 +48,8 @@ SQLSTATE relevantes para os futuros serviços: `23505` (unicidade), `23P01` (sob
 
 ## Verificação
 
+Etapa 05: `npm run test:park` valida os cadastros reais pela API em banco temporário, incluindo toda a cadeia empresa/unidade/andar/planta, papéis manager/viewer, dois datacenters na mesma unidade, renomeação sem mudança de IDs, dependências e criação concorrente de filho versus exclusão do pai. Exclusão definitiva sem cascata/arquivamento; empresas com concessões também são protegidas. Nenhuma migração nova ou reset de volume foi necessário.
+
 `npm run test:db` usa bancos temporários exclusivos no mesmo PostgreSQL persistente. Testa instalação nova, atualização 001 → 002/003 com dados em todas as tabelas anteriores, igualdade de esquema, reaplicação, checksum, rollback e dois migradores simultâneos. Testa relações entre empresas, filiação, nomes, geometria, dependências, U e conexão única. `npm run test:auth` valida o comportamento real de autenticação em banco exclusivo, incluindo bootstrap concorrente, expiração, logout, persistência de sessão/limites, rotação de token, origens e cookies.
 
 Os testes concorrentes usam duas transações e comprovam que a segunda sessão aguarda um lock real em `pg_stat_activity` antes de confirmar a primeira. Cobrem ponto, porta, sobreposição e redução contra INSERT/UPDATE, nos dois sentidos, incluindo um snapshot em REPEATABLE READ. Dados sintéticos e bancos de teste são removidos ao terminar. Não há acesso ao levantamento legado.

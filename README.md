@@ -1,6 +1,6 @@
 # Topologia New
 
-Projeto independente para documentar plantas, mesas, datacenters, racks e conexões de várias empresas. Etapas 01 a 04 concluídas: ambiente Docker, domínio, migrações, autenticação, administração global e acessos por empresa. O parque começa vazio; o primeiro administrador é criado explicitamente pelo usuário, sem senha padrão.
+Projeto independente para documentar plantas, mesas, datacenters, racks e conexões de várias empresas. Etapas 01 a 05 concluídas: ambiente Docker, domínio, migrações, autenticação, administração global, acessos por empresa e cadastros da hierarquia do parque. O parque começa vazio; o primeiro administrador é criado explicitamente pelo usuário, sem senha padrão.
 
 - [Escopo](docs/ESCOPO.md)
 - [Arquitetura](docs/IMPLEMENTACAO.md)
@@ -67,9 +67,23 @@ Para editar, use **Empresa para editar** ou **Usuário para editar**. Renomear p
 
 Em **Empresas autorizadas** (`/parque?empresa=UUID`), cada usuário vê as empresas e os papéis atuais. Recarregar mantém a seleção; **Atualizar acessos**, voltar ao foco ou a consulta a cada 30 segundos revalida a lista e o contexto. A API consulta o banco em cada requisição: revogação/troca de papel não depende de atualizar a tela ou refazer login. Empresa inexistente ou não autorizada recebe 404; escrita como visualizador recebe 403; sessão inválida ou usuário inativo recebe 401. Todas as operações administrativas são exclusivas do administrador geral.
 
-API: `GET /api/companies`, `GET /api/companies/:companyId`, `GET /api/companies/:companyId/park`; administração em `GET/POST /api/admin/users`, `PATCH /api/admin/users/:userId`, `POST /api/admin/companies`, `PATCH /api/admin/companies/:companyId`, `GET /api/admin/users/:userId/permissions` e `PUT/DELETE /api/admin/users/:userId/permissions/:companyId`. A concessão PUT recebe `{ role: "manager" | "viewer" }`; cadastros de empresa recebem `{ name }`. Payloads públicos nunca devolvem hash ou sessão interna. Exclusão/arquivamento de empresas e os cadastros do parque serão tratados na etapa 05; esta etapa entrega a criação e a renomeação básicas de empresas.
+API: `GET /api/companies`, `GET /api/companies/:companyId`, `GET /api/companies/:companyId/park`; administração em `GET/POST /api/admin/users`, `PATCH /api/admin/users/:userId`, `POST /api/admin/companies`, `PATCH/DELETE /api/admin/companies/:companyId`, `GET /api/admin/users/:userId/permissions` e `PUT/DELETE /api/admin/users/:userId/permissions/:companyId`. A concessão PUT recebe `{ role: "manager" | "viewer" }`; cadastros de empresa recebem `{ name }`. Payloads públicos nunca devolvem hash ou sessão interna. Criar, renomear e excluir empresas continua exclusivo do administrador geral.
 
 Não há migração nova: as tabelas e constraints de usuários, empresas e permissões já estão na migração 001. `npm run test:access` valida a API com PostgreSQL e banco sintético exclusivo, removido ao terminar. Para futuras rotas do parque, declare `config: { access: 'company' }`, valide `params.companyId` como UUID e use `request.company.id` em todas as consultas, incluindo as referências a filhos; métodos de escrita recusam viewer automaticamente. Rotas sem política explícita são recusadas por padrão.
+
+## Cadastrar e consultar o parque
+
+Em **Empresas autorizadas**, selecione a empresa. O administrador geral e o gerente autorizado podem usar **Nova unidade**, informar nome e classificação (**Matriz**, **Filial**, **CD** ou uma identificação livre) e salvar. Abra a unidade pelo nome para cadastrar seus **Andares** e **Datacenters da unidade**. Abra o andar para cadastrar **Plantas**. A planta exige somente um nome; imagem, desenho, importação e posicionamento pertencem às próximas etapas. Cada unidade pode ter vários datacenters, independentemente de seus andares.
+
+Use **Editar** para renomear, mantendo IDs e vínculos; a unidade também permite alterar sua classificação. Nesta etapa não se transferem cadastros entre pais: empresa, unidade e andar de filiação não são editáveis. O vínculo espacial de datacenters a plantas será tratado junto com o posicionamento; os metadados desta etapa preservam qualquer geometria ou vínculo espacial já persistido.
+
+O caminho acima das listas permite retornar ao contexto anterior. Empresa, unidade, andar, planta ou datacenter selecionados ficam na URL, por exemplo `/parque?empresa=UUID&unidade=UUID&andar=UUID&planta=UUID`. Recarregar e os botões Voltar/Avançar do navegador preservam o contexto; selecionar outro pai limpa a seleção dos filhos. IDs incompatíveis não mostram filhos de outro contexto. **Atualizar acessos**, foco e revalidação periódica atualizam também os cadastros e o papel. Visualizadores consultam as mesmas listas sem controles de alteração; chamadas diretas de escrita recebem 403.
+
+**Política de exclusão:** exclusão definitiva, mediante confirmação na tela, somente para registros sem dependências; sem arquivamento ou exclusão em cascata nesta etapa. A API e as FKs RESTRICT bloqueiam a remoção de unidade com andares/datacenters, andar com plantas, planta referenciada por mesas/setores/datacenters/racks e datacenter com racks. Empresas só podem ser excluídas pelo administrador, após remover seus cadastros e revogar suas permissões. Conflitos retornam 409 e mantêm os dados; não há desvinculação automática. Exclua os dependentes explicitamente de baixo para cima quando necessário.
+
+API de cadastro, sob `/api/companies/:companyId`: `/units`, `/units/:unitId/floors`, `/units/:unitId/floors/:floorId/plans` e `/units/:unitId/datacenters`. Cada coleção aceita GET (lista) e POST (criação); acrescente o ID do registro para GET (detalhe), PATCH (edição) ou DELETE. Unidades recebem `{ name, classification }`; demais cadastros recebem `{ name }`; PATCH aceita somente os campos editáveis presentes. UUIDs, limites de 1 a 200 caracteres, nomes não vazios, unicidade no pai e toda a filiação são validados. Propriedades extras são recusadas. `/park` retorna um snapshot dos metadados da empresa autorizada, sem arquivos ou geometria.
+
+`npm run test:park` valida os cadastros, papéis, filiações, renomeações, exclusões e concorrência em PostgreSQL exclusivo. Não há migração nova nem seed: as migrações 001/002 já protegem toda a hierarquia. O banco de trabalho e seus volumes são preservados.
 
 ## Login, sessão e logout
 

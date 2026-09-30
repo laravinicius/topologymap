@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AuthSession, AccessibleCompany } from '@topologia-new/domain';
+import type { AuthSession, AccessibleCompany, ParkSnapshot } from '@topologia-new/domain';
 import { api, ApiError, message } from './api';
 import { Administration } from './Administration';
+import { Park } from './Park';
 
 export function Workspace({ session, checkSession }: { session: AuthSession; checkSession: () => Promise<void> }) {
   const [companies, setCompanies] = useState<AccessibleCompany[]>([]);
   const [selected, setSelected] = useState(() => new URLSearchParams(location.search).get('empresa') ?? '');
-  const [company, setCompany] = useState<AccessibleCompany | null>(null);
+  const [park, setPark] = useState<ParkSnapshot | null>(null);
+  const company = park?.company;
   const [error, setError] = useState(''), [loading, setLoading] = useState(true);
   const [admin, setAdmin] = useState(location.pathname === '/administracao');
   const requestNumber = useRef(0);
@@ -17,19 +19,19 @@ export function Workspace({ session, checkSession }: { session: AuthSession; che
       if (number !== requestNumber.current) return;
       setCompanies(result.companies);
       if (selected) {
-        const detail = await api<{ company: AccessibleCompany }>(`/companies/${encodeURIComponent(selected)}/park`);
+        const detail = await api<ParkSnapshot>(`/companies/${encodeURIComponent(selected)}/park`);
         if (number !== requestNumber.current) return;
-        setCompany(detail.company);
-      } else setCompany(null);
+        setPark(detail);
+      } else setPark(null);
       setError('');
     } catch (e) {
       if (number !== requestNumber.current) return;
-      setCompany(null); setError(message(e));
+      setPark(null); setError(message(e));
       if (e instanceof ApiError && e.status === 401) { setCompanies([]); void checkSession(); }
     } finally { if (number === requestNumber.current) setLoading(false); }
   }, [selected, checkSession]);
   useEffect(() => {
-    setCompany(null); setLoading(true); void refresh();
+    setPark(null); setLoading(true); void refresh();
     const focus = () => { void refresh(); };
     const interval = window.setInterval(focus, 30000);
     window.addEventListener('focus', focus);
@@ -59,7 +61,7 @@ export function Workspace({ session, checkSession }: { session: AuthSession; che
       </>}
       {company && <div className="company-context">
         <h3>{company.name}</h3><p className="badge">{company.role === 'admin' ? 'Administrador geral' : company.role === 'manager' ? 'Gerenciamento' : 'Visualização — somente consulta'}</p>
-        <p>O cadastro de unidades e a navegação pelo parque serão disponibilizados na etapa 05.</p>
+        {park && <Park key={company.id} data={park} refresh={refresh} checkSession={checkSession} />}
       </div>}
     </section>}
   </>;

@@ -1,6 +1,6 @@
 # Arquitetura e plano de implementação
 
-Status: etapas 01 a 04 implementadas e validadas localmente; demais funcionalidades continuam como proposta técnica. Atualizado em 30/09/2026. Evidências em [PROGRESSO.md](PROGRESSO.md).
+Status: etapas 01 a 05 implementadas e validadas localmente; demais funcionalidades continuam como proposta técnica. Atualizado em 30/09/2026. Evidências em [PROGRESSO.md](PROGRESSO.md).
 
 Os requisitos confirmados e os detalhes propostos estão separados em [ESCOPO.md](ESCOPO.md).
 
@@ -73,6 +73,18 @@ Ocupação em U usa `int8range` gerado e exclusão GiST (`btree_gist`). A capaci
 
 Usuários, sessões e permissões receberam estrutura na etapa 02. A autenticação central e o provisionamento explícito foram implementados na etapa 03; administração e autorização por empresa foram implementadas na etapa 04. A tabela única de conexões já tem FKs, unicidades e revisão automática; operações de associação/transferência com estado esperado continuam na etapa 08.
 
+### Cadastros do parque — etapa 05
+
+API em `apps/api/src/park/routes.ts`: coleções/detalhes de unidades, andares, plantas e datacenters com GET/POST/PATCH/DELETE, sob a política central de empresa. Toda consulta/gravação filtra empresa e a cadeia completa da URL; POST valida o pai e as FKs compostas protegem a filiação também sob concorrência. PATCH aceita somente nome e, para unidades, classificação livre; IDs e pais não são editáveis. Novas plantas usam a geometria vazia padrão do banco, sem imagem. Não foi necessária migração: 001/002 já cobrem a entrega.
+
+`GET /api/companies/:companyId/park` passou de placeholder a snapshot de metadados, com as quatro coleções em um statement SQL para consistência de leitura. Contratos públicos em `packages/domain/src/park.ts` compartilham entidades do domínio sem retornar geometria/arquivos. O vínculo espacial de datacenters e posicionamento continuam nas etapas de layout; editar seus nomes não altera plan_id/placement existentes.
+
+`apps/web/src/Park.tsx` entrega listas, formulários contextuais, sugestões Matriz/Filial/CD com identificação livre, estados vazios, confirmação de exclusão e feedback. Breadcrumbs e seleção na URL suportam recarga e histórico; a seleção de outro pai limpa seus filhos, e IDs incompatíveis não exibem conteúdo de outro contexto. `Workspace.tsx` revalida cadastros e papel no mesmo fluxo de foco/30 segundos/atualização manual. `Administration.tsx` mantém empresas e acessos globais exclusivos do administrador e acrescenta exclusão de empresas.
+
+**Política adotada:** exclusão definitiva somente sem dependências, sem arquivamento ou cascata. Excluir empresas exige perfil global, cadastros vazios e concessões revogadas; demais exclusões exigem gerente autorizado ou administrador. O banco impede remover pais referenciados, inclusive plantas com mesas/setores/datacenters/racks e datacenters com racks. A interface confirma a intenção; a API traduz dependências em HTTP 409, sem limpar filhos/vínculos automaticamente. Filiação não é transferida nesta etapa. PostgreSQL desta máquina devolveu `23001` nas exclusões RESTRICT; o tratamento contempla esse código e `23503`, conforme os [SQLSTATE oficiais](https://www.postgresql.org/docs/current/errcodes-appendix.html).
+
+`npm run test:park` usa PostgreSQL isolado para CRUD, grafia/IDs/pais, papéis, entradas inválidas, cadeias cruzadas, dependências e criação de filho concorrente à exclusão do pai. Testes anteriores continuam passando. Fluxo de formulário em Chromium desktop/celular validado com empresa, matriz/filial, seus andares/plantas e dois datacenters na matriz; evidências no progresso.
+
 ## 4. Geometria e editor
 
 O domínio armazenará IDs, posições e dimensões no sistema de coordenadas da planta. Pixels, zoom e deslocamento da câmera pertencem ao renderizador.
@@ -93,7 +105,7 @@ Salvar o layout com número de revisão. Se outra sessão já alterou a revisão
 
 **Implementado na etapa 04:** `apps/api/src/auth/authorization.ts` declara políticas `session`, `admin` e `company` e aplica um hook central `preHandler`, depois da validação de schema. Rotas sem política são recusadas; exceções públicas são restritas a método/rota de saúde e autenticação existentes. Em acesso por empresa, a consulta junta usuário ativo, empresa e concessão atual; não armazena papel na sessão. GET/HEAD consultam manager/viewer, métodos de escrita rejeitam viewer, e administrador tem acesso a todas as empresas. `request.company` carrega o contexto autorizado, usado nas consultas; filhos precisam ser consultados com o mesmo company_id, nunca só pelo ID fornecido. Referência inexistente e empresa sem acesso retornam a mesma mensagem/404. Contrato de hooks conferido na [documentação oficial do Fastify](https://fastify.dev/docs/latest/Reference/Routes/).
 
-`apps/api/src/admin/routes.ts` implementa usuários (criação, edição, atividade e senha), empresa básica (criação/renomeação) e concessão por usuário/empresa (upsert ou revogação). Apenas administrador geral opera essas rotas. Novos usuários não são administradores; campo isAdmin é recusado no corpo e não há promoção/rebaixamento global pela tela. Desativação do administrador é recusada para preservar o acesso administrativo. Desativação de usuário e troca de senha revogam suas sessões na mesma transação sob lock do usuário; reativar não recupera os cookies antigos. Concessão exige usuário ativo sem perfil global. Nomes preservam grafia e IDs; duplicidade resulta em 409. Não se excluem usuários/empresas nesta etapa. Política de exclusão/arquivamento do parque continua na etapa 05.
+`apps/api/src/admin/routes.ts` implementa usuários (criação, edição, atividade e senha), empresa básica (criação/renomeação) e concessão por usuário/empresa (upsert ou revogação). Apenas administrador geral opera essas rotas. Novos usuários não são administradores; campo isAdmin é recusado no corpo e não há promoção/rebaixamento global pela tela. Desativação do administrador é recusada para preservar o acesso administrativo. Desativação de usuário e troca de senha revogam suas sessões na mesma transação sob lock do usuário; reativar não recupera os cookies antigos. Concessão exige usuário ativo sem perfil global. Nomes preservam grafia e IDs; duplicidade resulta em 409. Não se excluem usuários/empresas nesta etapa. A etapa 05 definiu a política de exclusão do parque, descrita abaixo.
 
 Os DTOs públicos estão em `packages/domain/src/access.ts`, sem hashes ou registros de sessões. Schemas recusam propriedades extras e coerção de tipos para impedir alterações de privilégios por mass assignment. O esquema da migração 001 já cobre a entrega; nenhuma migração ou reset foi necessário. Teste de escrita com `access: 'company'` utiliza uma rota registrada somente no app de teste e um UPDATE real em unidades sintéticas. Não se publica uma rota fictícia de escrita nem se antecipa o CRUD da etapa 05.
 
@@ -152,6 +164,7 @@ Ferramenta da etapa 02: `npm run db:migrate` / `npm run db:status`, execução e
 - [x] **Domínio e migrações (etapa 02):** contratos, esquema e migrações versionadas, sem reset dos volumes; restrições concorrentes validadas em PostgreSQL real.
 - [x] **Autenticação (etapa 03):** primeiro administrador explícito, login/logout, sessões persistidas, expiração, proteção de origem e limites; API/banco e navegador local validados em dados sintéticos separados.
 - [x] **Usuários e permissões (etapa 04):** administração global, empresa básica, acessos por empresa, autorização central e seletor; API/PostgreSQL e navegador desktop/celular validados com dados sintéticos isolados.
+- [x] **Organização do parque (etapa 05):** empresas, unidades, andares, plantas e datacenters; contexto na URL, estados vazios, IDs estáveis e exclusão protegida; API/PostgreSQL e formulários em navegador desktop/celular validados em banco exclusivo.
 - [ ] **Cadastros e conexões:** hierarquia completa, criação em lote de pontos/portas, vínculo único e edição pelas duas extremidades.
 - [ ] **Rack 2D:** capacidade em U, equipamentos genéricos, patch panels, seleção de portas e proteção contra sobreposição.
 - [ ] **Planta 2D:** desenho, setores, importação de fundos, escala, posicionamento, transformações e salvamento com revisão.

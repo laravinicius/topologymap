@@ -59,9 +59,6 @@ export function registerAdministration(app: FastifyInstance, pool: pg.Pool) {
       WHERE u.is_admin OR p.role IS NOT NULL ORDER BY c.name,c.id`, [request.session!.user.id])).rows,
   }));
   app.get('/api/companies/:companyId', { config: { access: 'company' }, schema: { params: companyParams } }, async request => request.company);
-  app.get('/api/companies/:companyId/park', { config: { access: 'company' }, schema: { params: companyParams } }, async request => ({
-    company: request.company, message: 'O cadastro de unidades e a navegação pelo parque serão disponibilizados na etapa 05.',
-  }));
   app.post<{ Body: CompanyInput }>('/api/admin/companies', { config: admin, schema: { body: companyBody } }, async (request, reply) => {
     const result = await pool.query('INSERT INTO companies(name) VALUES ($1) RETURNING id,name,created_at AS "createdAt",updated_at AS "updatedAt"', [request.body.name]);
     return reply.code(201).send(result.rows[0]);
@@ -70,6 +67,16 @@ export function registerAdministration(app: FastifyInstance, pool: pg.Pool) {
     const result = await pool.query('UPDATE companies SET name=$2 WHERE id=$1 RETURNING id,name,created_at AS "createdAt",updated_at AS "updatedAt"', [request.params.companyId, request.body.name]);
     if (!result.rowCount) throw new HttpError(404, 'Empresa não encontrada.');
     return result.rows[0];
+  });
+  app.delete<{ Params: { companyId: string } }>('/api/admin/companies/:companyId', { config: admin, schema: { params: companyParams } }, async (request, reply) => {
+    try {
+      const result = await pool.query('DELETE FROM companies WHERE id=$1', [request.params.companyId]);
+      if (!result.rowCount) throw new HttpError(404, 'Empresa não encontrada.');
+    } catch (error) {
+      if (['23503', '23001'].includes((error as { code?: string }).code ?? '')) throw new HttpError(409, 'Não é possível excluir a empresa: remova os cadastros dependentes e revogue seus acessos primeiro.');
+      throw error;
+    }
+    return reply.code(204).send();
   });
   app.get<{ Params: { userId: string } }>('/api/admin/users/:userId/permissions', { config: admin, schema: { params: userParams } }, async request => {
     if (!(await pool.query('SELECT id FROM users WHERE id=$1', [request.params.userId])).rowCount) throw new HttpError(404, 'Usuário não encontrado.');

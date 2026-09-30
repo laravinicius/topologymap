@@ -2,9 +2,9 @@
 
 Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Git. Capturas, logs e relatórios permanecem disponíveis na máquina onde foram gerados; os resultados das verificações continuam registrados neste documento. Os caminhos abaixo são referências locais e não acompanham novas cópias do repositório.
 
-Atualizado em 30/09/2026, às 17:10 (America/Sao_Paulo).
+Atualizado em 30/09/2026 (America/Sao_Paulo), após a conclusão da etapa 05.
 
-**Estado atual:** etapas 01 a 04 concluídas. Ambiente local saudável, autenticação, administração global e autorização por empresa disponíveis. Administrador e sessão existentes preservados; empresas e parque de trabalho continuam vazios. Dados sintéticos usados somente em bancos separados. Próxima etapa: 05, pendente e não iniciada. As seções 01 a 03 preservam o histórico; o resultado atual está na seção 04.
+**Estado atual:** etapas 01 a 05 concluídas. Ambiente local saudável, autenticação, administração global, autorização por empresa e cadastros de unidades/andares/plantas/datacenters disponíveis. Usuários, sessões, empresa e permissões existentes no banco de trabalho preservados; cadastros do parque continuam vazios ali. Dados sintéticos usados somente em bancos separados. Próxima etapa: 06, pendente e não iniciada. As seções 01 a 04 preservam o histórico; o resultado atual está na seção 05.
 
 ## Etapa 01 — Workspace e Docker local
 
@@ -312,3 +312,58 @@ Conferência após reconstrução, às **19:45:41**: mesmas contagens e nenhum b
 Entre com seu administrador existente, abra **Administração**, crie empresas/usuários e conceda os acessos. Para verificar: `npm run test:access`. Para retomar serviços: `npm run dev:all`; para parar preservando volumes: `npm run dev:stop`. Não é necessário executar migração nova para esta entrega.
 
 Typecheck/build, API/PostgreSQL e navegador local foram validados separadamente. Não houve teste em dispositivo físico ou produção. **Pendências essenciais da etapa 04: nenhuma. Próxima etapa: 05 — Empresas, unidades, andares, plantas e datacenters**, somente mediante nova solicitação.
+
+## Etapa 05 — Organização do parque
+
+**Situação: Concluída em 30/09/2026.** Empresas, unidades, andares, plantas e datacenters disponíveis em [http://localhost:5173](http://localhost:5173), com cadastro contextual, nomes livres, IDs estáveis e exclusões protegidas. Etapa 06 pendente e não iniciada.
+
+### Resultado e arquivos principais
+
+- `apps/api/src/park/routes.ts`: GET/POST/PATCH/DELETE de unidades, andares, plantas e datacenters, coleções/detalhes sob empresa autorizada. A cadeia completa da URL participa das consultas; criação valida o pai e as FKs compostas protegem também a gravação concorrente. `/companies/:companyId/park` retorna um snapshot consistente dos quatro cadastros em um statement SQL.
+- `packages/domain/src/park.ts`: DTOs compartilhados de metadados e entradas de nome/classificação, reutilizando entidades existentes. Não expõe geometria nem arquivos. Classificação livre, com sugestões Matriz/Filial/CD na interface; vários datacenters por unidade; planta criada só com nome e geometria vazia padrão.
+- `apps/web/src/Park.tsx`, `Workspace.tsx` e `style.css`: listas, formulários de criação/edição, seleção contextual, breadcrumbs, estados vazios, confirmação de exclusão e feedback. Contexto na URL suporta recarga/histórico; trocar o pai limpa filhos selecionados. Cadastros incompatíveis com a URL não aparecem. Revalidação periódica/foco/manual inclui hierarquia e papel. Visualizador consulta sem botões de edição; gerente só opera seu parque autorizado.
+- `apps/api/src/admin/routes.ts` e `apps/web/src/Administration.tsx`: completam exclusão de empresas, mantendo criação, renomeação, exclusão e concessões exclusivas do administrador. Gerente não administra cadastros globais.
+- `apps/api/src/app.ts`: tratamento de `23001` (RESTRICT) além de `23503` (FK), ambos como conflito público. A exclusão com dependentes não gera erro de serviço nem expõe SQL.
+- `apps/api/test/park.test.ts`, scripts `test:park` e opção explícita `test/browser-server.ts --stage05`: API/PostgreSQL e navegador com dados sintéticos em bancos independentes. README, arquitetura, plano e documentação do banco atualizados.
+
+**Política de exclusão:** definitiva e explícita, só sem dependências; sem cascata ou arquivamento. Empresas exigem remoção de cadastros e revogação dos acessos. Unidades com andares/datacenters, andares com plantas, plantas referenciadas por mesas/setores/datacenters/racks e datacenters com racks retornam 409. A operação não remove ou desvincula filhos automaticamente. IDs e filiação não são campos editáveis; renomear ou alterar a classificação da unidade não transfere filhos. O vínculo espacial/posicionamento de datacenters fica para as etapas de layout; metadados de cadastro preservam vínculos/placement já persistidos.
+
+Não houve migração nova, instalação de dependências, alteração de lockfile ou reset. Esquema existente 001/002 e autorização central da etapa 04 cobrem a entrega. Dependências 01 a 04 confirmadas pelos serviços, três migrações aplicadas e testes de regressão atuais.
+
+### Verificações executadas
+
+| Camada | Procedimento | Resultado |
+|---|---|---|
+| Tipos e build | `npm run typecheck` e `npm run build` no host e dentro da API Linux | Passaram; workspace/API/web/domínio compilados. |
+| API e PostgreSQL | `npm run test:park` | 9/9 testes passando, incluindo oito grupos de cenários e o teste principal. CRUD real, Matriz/Filial/CD/livre, vários datacenters, planta sem imagem, duplicidades/limites, IDs estáveis e pais preservados. |
+| Acesso e filiação | Chamadas diretas como manager/viewer/admin e referências cruzadas | Gerente autorizado grava; viewer recebe 403; empresa não autorizada e cadeias erradas recebem 404; escalada global e alteração de IDs/pais recusadas. Troca de papel/revogação vale na sessão existente. |
+| Dependências | DELETE com unidades/andares/mesas/setores/datacenters/racks/permissões dependentes, depois remoção explícita de folhas | 409 protege pais; 204 nas exclusões válidas; 404 após remover. Filiação cruzada também rejeitada diretamente no PostgreSQL. |
+| Concorrência | Quatro corridas de DELETE da unidade contra POST do andar | Nunca houve exclusão do pai e criação bem-sucedida do filho na mesma corrida; zero órfãos. |
+| Regressão | `test:access`, `test:auth`, `test:db`, `test:domain` | 13/13, 15/15, 35/35 e 4/4 testes passando, respectivamente. Total com parque: 76 testes. |
+| Navegador local | Playwright CLI/Chromium, formulários reais, desktop 1280 × 900 e celular 390 × 844 | Fluxo solicitado realizado; contexto, renomeação, dependência, modo consulta e layout conferidos. Nenhum teste em dispositivo físico ou produção. |
+
+Logs locais em `docs/evidencias/etapa05/testes-*.txt`, `typecheck-{host,linux}.txt` e `build-{host,linux}.txt`. As evidências de tipos/build não substituem os testes de banco nem a conferência do navegador.
+
+### Validação real no navegador
+
+Ambiente opcional exclusivo: banco `topologia_new_test05_browser_37d1d77cbf23`, API interna temporária em 3002 e web temporária em `127.0.0.1:5174`, sem carga automática no banco de trabalho. Administrador sintético provisionado só por `--stage05` explícito.
+
+- Pela tela administrativa, criados empresa e usuário sintéticos; concedido gerenciamento. Após entrar com esse gerente, Administração estava ausente. A hierarquia foi cadastrada pelos formulários, sem inserir suas entidades via API ou SQL: **Matriz QA** e **Filial QA**, classificações Matriz/Filial, **Térreo Matriz** e **Térreo Filial**, **Planta Matriz 01** e **Planta Filial 01**, **Datacenter 01** e **Datacenter 02** na matriz.
+- Estados vazios de unidades, andares, plantas e datacenters observados antes de seus cadastros. As duas plantas foram salvas só com nome; nenhum arquivo ou imagem exigido. Abrir filial não exibiu andares/datacenters da matriz.
+- Selecionar planta e recarregar manteve empresa/unidade/andar/planta. Abrir Datacenter 02 limpou o contexto de andar/planta e a recarga manteve unidade/datacenter. Breadcrumbs e seleção das listas indicaram os pais corretos.
+- Renomear a planta da filial para **Planta Filial 01 revisada** manteve o mesmo UUID na URL e no PostgreSQL. API também verificou preservação de IDs, created_at, pais e geometria para todos os recursos e empresa.
+- Excluir a filial com andar/planta mostrou confirmação e depois o conflito **Não é possível excluir: este cadastro possui dependências. Remova ou desvincule os dependentes primeiro.** Os registros permaneceram consultáveis.
+- Papel alterado para viewer somente no banco de QA, sem trocar a sessão. Recarregar apresentou **Visualização — somente consulta**, com zero botões de criação/edição/exclusão. PATCHs diretos do navegador para unidade, andar, planta, datacenter e empresa responderam 403. A alteração de permissões via API administrativa foi validada separadamente pelos testes.
+- Capturas desktop/celular inspecionadas visualmente. No viewport de 390 px, scrollWidth também 390, sem overflow e sem controles menores que 44 px. Botões contextuais compactados após a primeira conferência; `matriz-celular.png` e `visualizador-celular.png` registram o resultado final. Console final sem exceções JavaScript da aplicação; os 403/409 são cenários esperados. 401 sem sessão e favicon 404 já existentes também apareceram na entrada inicial.
+
+Evidências: `navegador-{matriz,filial-recarga,datacenter-recarga,exclusao-protegida,visualizador,visualizador-api}.txt`, `cadastros-qa.txt`, `ids-qa.txt`, `layout-celular-final.txt`, `console.txt`; `matriz-{desktop,celular}.png`, `filial-desktop.png` e `visualizador-{desktop,celular}.png`.
+
+### Estado final e operação
+
+O banco de trabalho foi conferido antes/depois: **2 usuários, 3 sessões, 1 empresa e 1 concessão existentes**, com **0 unidades, andares, plantas e datacenters**. Essas contagens atuais diferem do registro histórico da etapa 04; nenhum cadastro sintético foi criado no banco de trabalho nesta etapa. Os arquivos `banco-trabalho-{antes,depois}.txt` são iguais. Volume PostgreSQL original preservado, criação `2026-09-30T17:51:39Z`; três versões no histórico de migrações. Banco/container temporários de QA e arquivo de credencial removidos; zero bancos de teste restantes.
+
+Permanecem API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` saudáveis. Interface em [http://localhost:5173](http://localhost:5173); API/banco sem portas publicadas. Healthcheck final HTTP 200, status ok e database up às 20:19:52 (America/Sao_Paulo), em `health-final.json`. Navegador sem sessão abriu `/parque` do ambiente de trabalho e retornou ao login, com captura em `login-ambiente-usuario.png`. Nenhum commit, push ou publicação realizado.
+
+Para validar com seus dados, entre com o administrador existente, crie/conceda acesso à empresa em **Administração**, selecione-a em **Empresas autorizadas** e cadastre unidades → andares → plantas; datacenters ficam na unidade. Use uma conta gerente autorizada ou o administrador. Recarregue para conferir o contexto. `npm run test:park` repete as verificações da API em dados isolados. Retomar: `npm run dev:all`; parar preservando volumes: `npm run dev:stop`.
+
+**Pendências essenciais da etapa 05: nenhuma. Próxima etapa: 06 — Mesas e pontos, pendente e não iniciada.**

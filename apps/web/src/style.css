@@ -44,6 +44,20 @@ button:disabled { opacity: .65; cursor: wait; }
 h3 { font-size: 1.05rem; margin: 24px 0 12px; }
 .hint { margin: -8px 0 16px; font-size: .875rem; }
 .success { color: #166534; }
+.park-context, .park-context > div, .park-collection, .park-item-name { min-width: 0; }
+.breadcrumbs, .park-actions, .park-item-name { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.breadcrumbs { margin: 20px 0; }
+.breadcrumbs button { width: auto; margin-top: 0; max-width: 100%; overflow-wrap: anywhere; }
+.park-collection { border-top: 1px solid #cbd5e1; padding: 16px 0; }
+.park-collection h3 { margin: 0; }
+.park-list { list-style: none; padding: 0; margin: 16px 0; }
+.park-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
+.park-item-name { flex: 1 1 200px; overflow-wrap: anywhere; }
+.park-item-name button { width: auto; text-align: left; max-width: 100%; overflow-wrap: anywhere; margin: 0; }
+.park-item-name button[aria-pressed="true"] { background: #dbeafe; border-width: 2px; }
+.park-actions button { width: auto; margin-top: 0; }
+.empty-state, .park-detail, .delete-confirm { background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 6px; }
+.park-detail h4, .delete-confirm p { margin-top: 0; }
 .checkbox { display: flex; align-items: center; gap: 12px; }
 .checkbox input { width: 24px; min-height: 24px; margin: 0; }
 .permissions { margin-top: 28px; border-top: 1px solid #cbd5e1; }
