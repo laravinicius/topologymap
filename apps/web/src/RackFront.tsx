@@ -18,9 +18,11 @@ export function RackFront({ rack, writable, selectedPort, onSelectPort, onMove, 
             return <div key={item.id} className={`rack-unit-equipment ${item.kind === 'patch_panel' ? 'patch-panel' : 'generic-equipment'}`}
               style={{ gridRow: `${row} / span ${item.heightU}` }} draggable={writable} onDragStart={event => { event.dataTransfer.setData('text/plain', item.id); event.dataTransfer.effectAllowed = 'move'; }}
               onDragEnd={event => { event.currentTarget.removeAttribute('data-dragging'); }} data-equipment-id={item.id}>
-              <div className="rack-equipment-heading"><strong>{item.name}</strong>
+              <div className="rack-equipment-heading" title={`${item.name} · ${item.equipmentType} · ${item.heightU} U`}><strong>{item.name}</strong>
                 <span>{item.equipmentType} · {item.heightU} U</span>
-                {writable && <button type="button" className="rack-edit-position secondary" onClick={() => onEdit(detail)}>Editar posição</button>}
+              </div>
+              <div className="rack-equipment-controls">
+                {writable && <button type="button" className="rack-edit-position secondary" aria-label={`Editar posição de ${item.name}`} onClick={() => onEdit(detail)}>Editar posição</button>}
                 {writable && <span className="rack-position-controls" aria-label={`Posição de ${item.name}`}>
                   <button type="button" className="secondary" aria-label={`Mover ${item.name} uma U para cima`} disabled={item.startU + item.heightU > rack.capacityU} onClick={() => onMove(item.id, item.startU + 1)}>↑</button>
                   <button type="button" className="secondary" aria-label={`Mover ${item.name} uma U para baixo`} disabled={item.startU <= 1} onClick={() => onMove(item.id, item.startU - 1)}>↓</button>

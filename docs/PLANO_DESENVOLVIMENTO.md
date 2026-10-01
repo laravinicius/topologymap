@@ -4,7 +4,7 @@ Projeto: Topologia New. Elaborado em 30/09/2026.
 
 **Estado inicial:** documentação criada; aplicação, banco e containers ainda não implementados. Todas as etapas abaixo começam pendentes.
 
-**Estado atual (01/10/2026):** etapas 01 a 10 concluídas, com ambiente local em execução e evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 11 a 21 permanecem pendentes. Usuários, sessões, empresa, acessos e cadastros existentes no banco de trabalho foram preservados; novas instalações usam provisionamento explícito conforme o README.
+**Estado atual (01/10/2026):** etapas 01 a 11 concluídas. As duas falhas da etapa 10 foram corrigidas e passaram na revalidação de permissões e controles do rack; achados históricos e evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 12 a 21 permanecem pendentes. Alterações locais da etapa 11 e usuários, sessões, empresa, acessos e cadastros existentes no banco de trabalho foram preservados; novas instalações usam provisionamento explícito conforme o README.
 
 Este documento transforma [ESCOPO.md](ESCOPO.md) e [IMPLEMENTACAO.md](IMPLEMENTACAO.md) em tarefas executáveis, em ordem, com solicitações prontas para copiar para o agente.
 
@@ -81,7 +81,7 @@ Usar os estados `Pendente`, `Em andamento`, `Concluída` e `Bloqueada`. Marcar b
 | 08 | API de conexões e proteção contra concorrência | 06, 07 | Concluída |
 | 09 | Consulta e associação pela mesa | 08 | Concluída |
 | 10 | Visualização frontal do rack e associação pela porta | 09 | Concluída |
-| 11 | Persistência do layout e revisões | 06, 07, 10 | Pendente |
+| 11 | Persistência do layout e revisões | 06, 07, 10 | Concluída |
 | 12 | Área de desenho e posicionamento de mesas/racks | 11 | Pendente |
 | 13 | Paredes, portas, janelas e setores | 12 | Pendente |
 | 14 | Importação de plantas e calibração de escala | 13 | Pendente |

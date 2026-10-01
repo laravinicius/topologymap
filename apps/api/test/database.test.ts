@@ -17,6 +17,7 @@ const directories: string[] = [];
 const id = () => randomUUID();
 const rectangle = { x: -1, y: 2, width: 1.2, height: 0.6, rotation: 90 };
 const polygon = [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 0, y: 3 }];
+const migrationCount = 4;
 type Queryable = Pick<pg.Pool, 'query'>;
 
 async function database(label: string): Promise<pg.Pool> {
@@ -110,13 +111,13 @@ test('etapa 02: migrações e integridade em PostgreSQL real, com bancos sintét
     const fresh = await database('fresh');
     const upgrade = await database('upgrade');
     await t.test('banco novo: status não cria tabelas; apply e reaplicação', async () => {
-      assert.deepEqual((await runMigrations(fresh, { statusOnly: true })).map(x => x.state), ['pending', 'pending', 'pending']);
+      assert.deepEqual((await runMigrations(fresh, { statusOnly: true })).map(x => x.state), Array(migrationCount).fill('pending'));
       assert.equal((await fresh.query("SELECT count(*)::int AS count FROM information_schema.tables WHERE table_schema='public'")).rows[0].count, 0);
       await runMigrations(fresh); await runMigrations(fresh);
-      assert.equal((await fresh.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 3);
-      assert.deepEqual((await runMigrations(fresh, { statusOnly: true })).map(x => x.state), ['applied', 'applied', 'applied']);
+      assert.equal((await fresh.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, migrationCount);
+      assert.deepEqual((await runMigrations(fresh, { statusOnly: true })).map(x => x.state), Array(migrationCount).fill('applied'));
     });
-    await t.test('banco inicializado: 001 com dados -> 002/003, preservação e esquema igual ao banco novo', async () => {
+    await t.test('banco inicializado: 001 com dados -> 002/003/004, preservação e esquema igual ao banco novo', async () => {
       const directory = await mkdtemp(join(tmpdir(), 'topologia-stage02-upgrade-')); directories.push(directory);
       await cp(join(migrationsDirectory, '001_access_hierarchy.sql'), join(directory, '001_access_hierarchy.sql'));
       await runMigrations(upgrade, { directory });
@@ -134,11 +135,29 @@ test('etapa 02: migrações e integridade em PostgreSQL real, com bancos sintét
       await upgrade.query("INSERT INTO datacenters(company_id,unit_id,plan_id,name) VALUES ($1,$2,$3,'Datacenter sintético')",[marker,unit,plan]);
       const oldTables = ['users','sessions','companies','company_permissions','units','floors','plans','sectors','desks','points','datacenters'];
       const preserved = [];
-      for (const table of oldTables) preserved.push((await upgrade.query(`SELECT to_jsonb(t) AS row FROM ${table} t ORDER BY id`)).rows);
+      for (const table of oldTables) preserved.push((await upgrade.query(`SELECT to_jsonb(t) - 'camera' AS row FROM ${table} t ORDER BY id`)).rows);
       await runMigrations(upgrade);
       assert.equal((await upgrade.query('SELECT name FROM companies WHERE id=$1', [marker])).rows[0].name, 'Marcador sintético de preservação');
-      for (const [i,table] of oldTables.entries()) assert.deepEqual((await upgrade.query(`SELECT to_jsonb(t) AS row FROM ${table} t ORDER BY id`)).rows,preserved[i]);
+      for (const [i,table] of oldTables.entries()) assert.deepEqual((await upgrade.query(`SELECT to_jsonb(t) - 'camera' AS row FROM ${table} t ORDER BY id`)).rows,preserved[i]);
       assert.deepEqual(await schema(upgrade), await schema(fresh));
+    });
+    await t.test('upgrade 003 -> 004 preserva layout, racks, equipamentos, portas e conexões existentes', async () => {
+      const initialized = await database('upgradelayout');
+      const directory = await mkdtemp(join(tmpdir(), 'topologia-stage11-upgrade-')); directories.push(directory);
+      for (const file of ['001_access_hierarchy.sql', '002_racks_connections.sql', '003_login_limits.sql'])
+        await cp(join(migrationsDirectory, file), join(directory, file));
+      await runMigrations(initialized, { directory });
+      const existing = await fixture(initialized, 'Upgrade11');
+      await initialized.query('UPDATE racks SET plan_id=$2,placement=$3 WHERE id=$1', [existing.rack, existing.plan, JSON.stringify(rectangle)]);
+      await initialized.query('INSERT INTO connections(company_id,point_id,port_id) VALUES ($1,$2,$3)', [existing.company, existing.points[0], existing.ports[0]]);
+      const tables = ['companies', 'units', 'floors', 'plans', 'sectors', 'desks', 'points', 'datacenters', 'racks', 'equipment', 'ports', 'connections'];
+      const before = [];
+      for (const table of tables) before.push((await initialized.query(`SELECT to_jsonb(t) - 'camera' AS row FROM ${table} t ORDER BY id`)).rows);
+      await runMigrations(initialized);
+      for (const [i, table] of tables.entries())
+        assert.deepEqual((await initialized.query(`SELECT to_jsonb(t) - 'camera' AS row FROM ${table} t ORDER BY id`)).rows, before[i], table);
+      assert.deepEqual(await schema(initialized), await schema(fresh));
+      assert.deepEqual((await initialized.query('SELECT camera FROM plans WHERE id=$1', [existing.plan])).rows[0].camera, { x: 0, y: 0, zoom: 1 });
     });
     await t.test('checksum divergente impede execução e arquivo ausente não é aceito', async () => {
       const directory = await mkdtemp(join(tmpdir(), 'topologia-stage02-checksum-')); directories.push(directory);
@@ -146,9 +165,9 @@ test('etapa 02: migrações e integridade em PostgreSQL real, com bancos sintét
       await writeFile(join(directory, '001_access_hierarchy.sql'), '-- alterado\n', { flag: 'a' });
       await assert.rejects(runMigrations(fresh, { directory }), /Histórico divergente/);
       await cp(join(migrationsDirectory, '001_access_hierarchy.sql'), join(directory, '001_access_hierarchy.sql'));
-      await rm(join(directory, '003_login_limits.sql'));
+      await rm(join(directory, '004_layout_revisions.sql'));
       await assert.rejects(runMigrations(fresh, { directory }), /Histórico divergente/);
-      assert.equal((await fresh.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 3);
+      assert.equal((await fresh.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, migrationCount);
     });
     await t.test('falha SQL reverte DDL e histórico da migração; correção permite retomar', async () => {
       const rollback = await database('rollback');
@@ -166,7 +185,7 @@ test('etapa 02: migrações e integridade em PostgreSQL real, com bancos sintét
     await t.test('dois migradores simultâneos aplicam cada versão uma única vez', async () => {
       const concurrent = await database('migrators');
       await Promise.all([runMigrations(concurrent), runMigrations(concurrent)]);
-      assert.equal((await concurrent.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 3);
+      assert.equal((await concurrent.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, migrationCount);
     });
 
     const a = await fixture(fresh, 'A'), b = await fixture(fresh, 'B');

@@ -107,6 +107,16 @@ O domínio armazenará IDs, posições e dimensões no sistema de coordenadas da
 
 **Contrato implementado na etapa 02:** versão 1 em metros, X à direita/Y para baixo, retângulos ancorados no centro, dimensões positivas e rotação horária em graus [0, 360). Paredes/aberturas estruturadas, setores como polígonos e fundo com metadados do arquivo separados da transformação em metros. Validadores no domínio e CHECKs JSONB no PostgreSQL. Detalhes em [GEOMETRIA.md](GEOMETRIA.md). Nenhum renderizador foi instalado nesta etapa; persistência com revisão esperada e edição continuam nas etapas previstas.
 
+### Persistência do layout — etapa 11
+
+`packages/domain/src/layout.ts` valida um documento versionado com geometria v1, câmera separada e listas completas de IDs UUID para mesas, racks e setores. `GET` e `PUT /api/companies/:companyId/plans/:planId/layout` aplicam a autorização central. O PUT valida revisão e conjuntos de referências dentro de transação bloqueada por planta. Posições e polígonos são escritos nos registros canônicos; paredes/aberturas ficam em `plans.geometry` e câmera em `plans.camera`. Não há cópia de cadastros nem escrita em pontos, equipamentos, portas ou conexões.
+
+A migração `004_layout_revisions.sql` adiciona a câmera e faz inserção/remoção/mudanças geométricas ou de filiação de mesas, racks e setores avançarem `plans.revision`. Uma gravação com revisão antiga ou conjunto cadastral diferente retorna 409. Após bloquear a planta, o salvamento bloqueia cada objeto com `FOR NO KEY UPDATE NOWAIT`; cadastro já em edição resulta em 409 com rollback, evitando deadlock entre planta e objeto. As consultas no mesmo cliente PostgreSQL são sequenciais. Rack com `placement: null` é gravado como SQL `NULL`.
+
+O documento v1 rejeita campos extras, inclusive em geometria/câmera/formas, para impedir cópias de cadastros e atributos do renderizador. IDs UUID duplicados também são rejeitados quando diferem apenas na capitalização. Introduzir ou trocar IDs de arquivos de fundo retorna 400 enquanto a importação/validação de arquivos da etapa 14 não estiver implementada; fundos preexistentes podem manter referências, mudar transformação ou ser removidos.
+
+`apps/api/test/layout.test.ts` cobre colisão concorrente da mesma revisão, edição cadastral em curso, dados inválidos, IDs duplicados/cruzados/inexistentes, outra planta da mesma empresa, cadastro alterado/incluído/excluído após leitura, posição ausente do rack, preservação integral das tabelas de cabeamento e papéis/revogação. A suíte de banco testa também upgrade específico 003→004 com layout e conexões preexistentes. Contrato dos corpos e códigos em [GEOMETRIA.md](GEOMETRIA.md).
+
 Geometria de paredes e aberturas deve ser estruturada. Portas e janelas podem referenciar a parede e a posição dentro dela. Setores usam polígonos; mesas e marcadores de rack usam transformação e dimensões. A posição gráfica não substitui a filiação no cadastro.
 
 Importar a planta cria um fundo. Para PDF, selecionar e renderizar uma página, mantendo o original e a imagem gerada em armazenamento do projeto. Registrar o alinhamento e a escala do fundo separadamente dos objetos.
@@ -199,6 +209,10 @@ Exclusão permanece explícita e sem cascata: porta exige ausência de conexão;
 ### Rack frontal 2D e associação pela porta — etapa 10
 
 `apps/web/src/RackFront.tsx` desenha o rack como U empilhadas de baixo para cima, com dimensões proporcionais, equipamentos genéricos e portas numeradas nos patch panels. `RackPortEditor.tsx` consulta o caminho da porta e permite ao gerente associar um ponto livre, transferir o vínculo dessa porta para outro ponto livre ou desvincular, com confirmação e estado esperado. A consulta `GET /companies/:companyId/points` identifica os pontos livres pelo nome da mesa e planta. Os mesmos vínculos aparecem na lista equivalente de portas e na mesa; não existe armazenamento paralelo.
+
+`Racks` passa a propriedade interna obrigatória `writable` ao painel da porta. Visualizadores recebem nome, estado e caminho atuais, atualização e fechamento, sem lista de candidatos ou edição. Revogação limpa seleção/confirmação; a gravação verifica a permissão antes e depois das consultas assíncronas. HTTP 403 atualiza os acessos. A revisão original das confirmações e o tratamento de 409 continuam preservados. Nenhuma rota, payload ou autorização da API mudou.
+
+A frente tem largura mínima de 900 px e rolagem horizontal restrita à moldura. Cada U mede 40 px, e a altura do equipamento continua proporcional a `heightU`. Identificação, controles e portas ocupam colunas separadas; somente a identificação recebe truncamento, com nome completo na lista equivalente e nos atributos de consulta. PP24/PP48 cabem em 1U; quantidades maiores rolam dentro da área de portas sem alterar a ocupação.
 
 Equipamentos podem ser movidos por arraste até uma U, por botões de uma U ou pelos campos de U inicial/altura do formulário. Todas as mudanças usam `PATCH` existente; conflitos 409 preservam o cadastro e as conexões. A consulta de rack retorna seus equipamentos com portas e conexões para compor a frente em uma leitura consistente. Nenhuma migração ou dependência de imagem foi necessária. `browser-server.ts --stage10` cria QA isolado sob solicitação explícita.
 

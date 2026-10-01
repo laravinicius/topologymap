@@ -2,9 +2,9 @@
 
 Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Git. Capturas, logs e relatórios permanecem disponíveis na máquina onde foram gerados; os resultados das verificações continuam registrados neste documento. Os caminhos abaixo são referências locais e não acompanham novas cópias do repositório.
 
-Atualizado em 01/10/2026 (America/Sao_Paulo), após a conclusão da etapa 10.
+Atualizado em 01/10/2026 (America/Sao_Paulo), após a correção e revalidação da etapa 10, preservando a etapa 11.
 
-**Estado atual:** etapas 01 a 10 concluídas. Ambiente local saudável, autenticação, administração global, autorização por empresa, hierarquia, mesas/pontos, racks/equipamentos/portas, API transacional e associação pela mesa e pela porta disponíveis. Consulta nas duas extremidades, seleção de destinos pelos nomes, transferência/desvinculação explícitas e tratamento de conflitos. Dados de trabalho preservados; QA sintético somente em bancos separados. Próxima etapa: 11, pendente. As seções anteriores preservam o histórico; os resultados atuais estão nas seções 09 e 10.
+**Estado atual:** etapas 01 a 11 concluídas. Ambiente local saudável, autenticação, administração global, autorização por empresa, hierarquia, mesas/pontos, racks/equipamentos/portas, API transacional, associação pela mesa e pela porta e persistência do layout disponíveis. As duas falhas de interface da etapa 10 passaram na revalidação descrita abaixo; alterações locais da etapa 11 preservadas. Dados de trabalho preservados; QA sintético somente em bancos separados. Etapas 12 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
 
 ## Etapa 01 — Workspace e Docker local
 
@@ -578,7 +578,7 @@ Typecheck/build, API/PostgreSQL e navegador local são provas separadas. Sem dis
 
 ## Etapa 10 — Rack frontal 2D e associação pela porta
 
-**Situação: Concluída em 01/10/2026.** Vista frontal e lista das portas integradas ao datacenter. Seleção de porta permite consulta e, para gerente, associação, transferência e desvinculação do ponto. Posição do equipamento pode ser alterada por arraste, botões de uma U e campos do cadastro. **Etapa 11 — Persistência do layout e revisões permanece pendente.**
+**Situação: Concluída após correção e revalidação em 01/10/2026.** A entrega original, os dois achados e a aprovação parcial permanecem no histórico abaixo. As duas falhas passaram na revalidação das correções registrada ao final desta seção. **Etapa 11 — Persistência do layout e revisões mantém seu registro e suas alterações locais; etapas 12 a 21 permanecem pendentes.**
 
 ### Entrega
 
@@ -605,4 +605,90 @@ Typecheck/build, API/PostgreSQL e navegador local são provas separadas. Sem dis
 
 Capturas Chromium/Playwright em `docs/evidencias/etapa10/` (diretório local ignorado): `vista-frontal-rack.png`, `porta-conexao.png`, `mesa-conexao.png` e `rack-lista-portas.png`. Os registros das suítes API/PostgreSQL estão no mesmo diretório. O banco sintético e a sessão de QA foram encerrados/removidos; web/API temporários e proxy de QA foram encerrados. Nenhum cadastro de QA foi gravado no banco de trabalho; não foi necessária comparação ou restauração do volume. API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` permanecem saudáveis. Web disponível em [http://localhost:5173](http://localhost:5173); somente web exposta em loopback. `npm run dev:stop` para parar preservando dados; `npm run dev:all` para subir.
 
-Sem validação em dispositivo físico ou produção, commit, push ou publicação. **Pendências essenciais da etapa 10: nenhuma. Próxima etapa: 11 — Persistência do layout e revisões**, somente mediante solicitação própria.
+Sem validação em dispositivo físico ou produção, commit, push ou publicação. A conclusão original foi substituída pela revalidação abaixo.
+
+### Revalidação da etapa 10 — 01/10/2026
+
+**Resultado: aprovação parcial; duas correções pendentes.** Revisão solicitada da implementação existente, sem correções no código funcional nem trabalho nas etapas posteriores. Alterações locais preexistentes da etapa 11 preservadas.
+
+| Achado | Reprodução e impacto | Local e correção necessária |
+|---|---|---|
+| P2 — Visualizador recebe ações de escrita no painel da porta | Em Chromium, perfil `viewer` seleciona Porta 1 ocupada e recebe seletor de ponto, Revisar transferência do vínculo e Revisar desvinculação. A confirmação de desvinculação envia DELETE e recebe **403**. POST de associação e transferência também retornam **403**, mantendo a conexão: a autorização da API está correta, mas a interface viola a consulta sem controles de escrita. | `apps/web/src/Racks.tsx` renderiza `RackPortEditor` sem passar `writable`; `RackPortEditor.tsx` renderiza seletor, ações e confirmação incondicionalmente. Propagar e aplicar a permissão atual, inclusive se revogada com o painel aberto. |
+| P2 — Portas sobrepõem controles de posição do patch panel | Rack 12U, PP24 e PP48 de 1U, viewport **1280 × 900**. A largura fixa das portas e o cabeçalho sem redução se sobrepõem. No PP24, o centro de Editar posição atinge Porta 2; ↑ atinge Porta 6; ↓ atinge Porta 8. Clique real em Editar posição falha porque Porta 2 intercepta os eventos. O formulário externo continua disponível. | `apps/web/src/style.css`, regras `.rack-equipment-heading` e `.rack-visual-ports`, e composição em `RackFront.tsx`. Separar os alvos de interação mantendo altura proporcional à ocupação e acesso à lista equivalente. |
+
+| Categoria | Verificação atual | Resultado |
+|---|---|---|
+| Typecheck / build | `npm run typecheck`; `npm run build` | **Aprovados**, API/testes/web/domínio; web 284,57 kB, gzip 84,04 kB. |
+| API / PostgreSQL | `npm run test:racks`; `npm run test:connections` | **13/13 em cada suíte**, incluindo ocupação, concorrência por SQL/API, posição, IDs, relação inversa, revisão, isolamento e papéis. Bancos exclusivos dos testes. |
+| Navegador — conexão | Chromium/Playwright CLI, gerente, QA em `http://localhost:5176`, banco `topologia_new_test10_browser_e4f705bb5d0c` | Porta 1 → Ponto 1 criada pela frente; vista pela mesa e pela lista. Transferência para Ponto 2 preservou ID e incrementou revisão; desvinculação liberou ambas as extremidades; nova associação aprovada. |
+| Navegador — posição e integridade | Servidor genérico 2U: botão início 2→3; arraste até U6: início 5; campos: início 6; avanço para início 7 | Gravações válidas aprovadas. Sobreposição com PP24 em U8 rejeitada com **409**; início 6 e conexão preservados. Após recarregar, mesma posição e mesmo DTO da conexão. |
+| Navegador — patch panel conectado | Editar equipamento pelo formulário externo: PP24 de U8→U9; recarregar | Posição 9 persistida; equipamento, IDs e conteúdo de todas as portas/conexão preservados integralmente. |
+| Navegador — acesso / acessibilidade | Visualizador, seleção por Enter, viewport 390 × 844 | Seleção por teclado aprovada; consulta e lista equivalentes disponíveis. Documento com largura 375 px dentro de viewport de 390 px. API rejeita as três escritas com **403**; controles de escrita indevidos e colisão visual registrados como pendências. |
+
+Evidências locais ignoradas em `output/playwright/validacao-etapa10/`: `typecheck.txt`, `build.txt`, `api-racks.txt`, `api-connections.txt`, `resultados.json`, `resultado-visual.json`, `browser-flows.txt` e `browser-visual.txt`. Capturas: `frente-inicial.png`, `frente-posicao-conflito.png`, `frente-sobreposicao-1280.png`, `mesa-vinculo.png`, `porta-gerente.png`, `lista-porta-vinculada.png`, `visualizador-acoes-indevidas.png`, `visualizador-api403.png` e `rack-celular.png`.
+
+QA encerrado: navegador, servidor API temporário e container `qa10_validation_web` finalizados; banco sintético removido, sem bancos `topologia_new_test%` restantes. Credenciais/sessões temporárias removidas. Banco de trabalho não recebeu fixtures ou alterações desta validação; volumes preservados. `db:status` confirmou 001–004 aplicadas, sem executar migração. API/web/banco principais continuam saudáveis, `/api/health` retorna HTTP 200 com `database=up` e web em [http://localhost:5173](http://localhost:5173), exposta somente em loopback. `git diff --check` aprovado; avisos existentes de conversão LF/CRLF sem erros de whitespace. Parar com `npm run dev:stop`, preservando volumes.
+
+**Pendências registradas nesta revalidação:** corrigir as duas falhas e repetir os cenários afetados antes de devolver a situação a Concluída. Sem teste em dispositivo físico ou produção. Nenhum commit, push, publicação, migração ou alteração funcional foi realizado nesta validação.
+
+### Correções e revalidação da etapa 10 — 01/10/2026
+
+**Resultado: Concluída.** Ambas as falhas P2 acima foram corrigidas e passaram nos cenários afetados, incluindo revogação durante consulta assíncrona e cliques reais na frente do rack em computador/celular. O histórico dos achados foi mantido. Escopo funcional limitado a `Racks.tsx`, `RackPortEditor.tsx`, `RackFront.tsx` e `style.css`; sem mudança no banco de trabalho, migrações, contratos públicos ou implementação da etapa 11.
+
+- Permissões: propriedade interna obrigatória `writable`, usando o papel já calculado pela aplicação. Visualizador recebe somente consulta atual, atualização e fechamento; candidatos carregados apenas com escrita. Perda da permissão cancela confirmação e limpa seleção. Gravação protegida na entrada e após as consultas, com atualização de acessos em 403. A revisão original das confirmações e o tratamento de conflitos foram preservados.
+- Layout: frente mínima de **900 px**, rolagem horizontal somente na moldura, **40 px por U**. Patch panels usam identificação, controles e portas em colunas separadas; genéricos usam identificação e controles. Truncamento apenas da identificação, com nomes completos na lista e atributos de consulta. Portas excedentes rolam dentro da área disponível sem aumentar a altura representada.
+
+| Categoria | Procedimento | Resultado |
+|---|---|---|
+| Typecheck / build | `npm run typecheck`; `npm run build` | **Aprovados**. Domínio/API/testes/web verificados; bundle web 285,07 kB, gzip 84,19 kB. |
+| API / PostgreSQL | `npm run test:racks`; `npm run test:connections` | **13/13 em cada suíte**, bancos separados criados/removidos pelos testes. |
+| Navegador — visualizador | Chrome/Chromium via Playwright CLI, portas livres/ocupadas, seleção por Enter e lista equivalente | Somente Fechar porta e Atualizar porta. **Zero GET da lista de candidatos e zero gravações iniciadas pela interface**. Estado/caminho atualizados com painel aberto após associação em outra sessão e retorno a Livre após desvinculação/Atualizar acessos. |
+| API — visualizador | POST de associação, POST de transferência e DELETE de conexão com sessão viewer | **403/403/403**; DTO da conexão integralmente preservado. |
+| Navegador — revogação | Rebaixar gerente com transferência confirmável aberta; Atualizar acessos; restaurar papel | Confirmação e seletor desaparecem, consulta continua aberta, nenhuma escrita iniciada. Ao restaurar papel, ponto selecionado vazio e confirmação cancelada. |
+| Navegador — 403 / consulta em voo | Rebaixar antes de confirmar desvinculação; depois rebaixar com resposta de GET anterior à transferência retida pelo Playwright | DELETE retorna **403**, acessos atualizados e controles retirados. No segundo cenário, soltar a resposta após revalidar os acessos gera **zero POST de transferência**, sem alteração do vínculo. |
+| Navegador — gerente | Associação pela Porta 1, consulta pela mesa, transferência confirmada para Ponto 2 e desvinculação confirmada | Associação inversa correta; transferência mantém ID e incrementa revisão; desvinculação libera mesa e porta. Nova associação realizada para testar o patch panel conectado. |
+| Navegador — revisão / conflito | Outra sessão transfere antes das consultas; outra transfere após as consultas, antes do POST retido pelo Playwright | Primeiro cenário impede POST e mostra estado atual. Segundo envia o `expected` original, recebe **409**, cancela confirmação e atualiza o caminho sem sobrescrever o vínculo concorrente. |
+| Navegador — layout | **1280 × 900** e **390 × 844**; PP24/PP48 de 1U, servidor 2U, nomes longos e PP96 de 1U | Alturas **40/40/80/40 px**; colunas sem invasão. PP24/PP48 cabem na área vertical; PP96 rola internamente e sua última porta é consultável. Frente mede 900 px; documento não excede o viewport. Centros dos controles/portas atingem o próprio botão. |
+| Navegador — cliques reais | Nas duas resoluções: Editar posição, ↑/↓ e portas de PP24/PP48; Editar posição e ↑/↓ no genérico | **Todos atingem o equipamento/porta correto**, com PATCH e posição confirmados pela API. Nomes completos recuperados no formulário/lista. Capturas mostram moldura, controles e portas em diferentes posições da rolagem. |
+| Navegador/API — integridade | Genérico: botões 2→3→2, arraste para início 5, campos para 6. PP24 conectado: botões 8→9→8, arraste para 4, campos para 9 | IDs e conteúdo integral de portas e pontos/conexões preservados após cada movimento. Sobreposições do genérico e do patch panel recebem **409**, sem alterar posição/cabeamento. Recarga confirma posições **6 e 9**. Rodada adicional de ↑/↓ nas duas resoluções preserva posições, IDs e vínculos após nova recarga. |
+| Preservação / operação | Contagens e MD5 ordenados por ID em **15 tabelas** antes/depois; consulta de bancos QA; health e Compose | Todas as tabelas do banco de trabalho **idênticas**, incluindo usuários/sessões. Nenhum banco `topologia_new_test%` restante. Migrações 001–004 apenas consultadas no banco de trabalho. Três serviços principais **healthy**; health HTTP **200**, `database=up`, às **13:47:08 (America/Sao_Paulo)**. |
+
+QA em `http://localhost:5176`, API temporária `api:3002`, banco exclusivo `topologia_new_test10_browser_0233b18ccaa1`; fixture sintética com gerente, viewer e administrador próprios. Servidor/API temporário encerrado, container `qa10_correction_web` removido, banco e todas as suas sessões eliminados, credencial `runtime.json` e três arquivos de sessão removidos. Navegador de QA encerrado. Web principal preservada em [http://localhost:5173](http://localhost:5173), exposta somente em **127.0.0.1:5173**; volumes preservados.
+
+Evidências locais ignoradas em `output/playwright/correcao-etapa10/`: `typecheck.txt`, `build.txt`, `api-racks.txt`, `api-connections.txt`, `browser-{layout,flows,permissions,revocation,conflicts,mobile}.txt` e relatórios correspondentes `*-resultados.json`; snapshots `banco-trabalho-antes.json`, `banco-trabalho-depois.json` e `banco-status-final.json`. O harness de revogação precisou aguardar a conclusão de `route.fulfill` antes de remover o interceptador; a execução corrigida passou, sem alteração na aplicação por esse erro do próprio QA.
+
+Capturas: `rack-{1280,390}.png`, `rack-controles-{1280,390}.png`, `rack-portas-{1280,390}.png`, `mesa-vinculo.png`, `lista-vinculo.png`, `gerente-confirmacao.png`, `gerente-porta.png`, `visualizador-livre.png`, `visualizador-ocupada.png`, `visualizador-consulta-atual.png`, `visualizador-porta-{1280,390}.png`, `revogacao-confirmacao-aberta.png`, `revogacao-somente-consulta.png`, `revogacao-api403.png`, `revogacao-consulta-em-voo.png`, `conflito-preconsulta.png` e `conflito-api409.png`. `git diff --check` sem erros de whitespace, registrado em `diff-check.txt`.
+
+**Pendências essenciais da etapa 10: nenhuma.** Validação em navegador local com viewports simulados; sem dispositivo físico, produção, commit, push ou publicação. Etapa 11 preservada e concluída; etapas 12 a 21 pendentes.
+
+## Etapa 11 — Persistência do layout e revisões
+
+**Situação: Concluída em 01/10/2026.** Documento de geometria persistido sem dependência do Konva, com leitura/salvamento versionados, validação das referências atuais e controle transacional de revisão. **Etapa 12 — Área de desenho e posicionamento permanece pendente.**
+
+### Entrega
+
+- `packages/domain/src/layout.ts` define o snapshot v1: geometria da planta, câmera em pixels separada das dimensões em metros, listas identificadas de mesas, racks e setores. O validador rejeita formato/formas inválidos, campos extras em todos os níveis, UUID ausente/malformado e IDs duplicados dentro de cada coleção ou entre tipos, independentemente da capitalização.
+- `GET` e `PUT /api/companies/:companyId/plans/:planId/layout` entregam leitura e salvamento para as plantas da empresa. Leitores podem consultar; gravações exigem gerente ou administrador pela política central. PUT aceita até 1 MiB para geometria e listas de objetos.
+- Migração incremental `004_layout_revisions.sql` adiciona `plans.camera` e revisão automática para inclusão, remoção, mudança de posição/filiação de mesas e racks e alterações em setores. Sem reset de banco/volume.
+- A gravação bloqueia a planta, compara `expectedRevision`, exige o conjunto completo atual dos IDs de mesas/racks/setores e bloqueia os objetos com `FOR NO KEY UPDATE NOWAIT` antes de atualizar em uma transação. Revisão/membros divergentes ou cadastro em edição retornam **409** com rollback; corpo geométrico inválido/ID repetido retorna **400**; planta fora da empresa retorna **404**. `placement: null` de rack é persistido como SQL `NULL`.
+- Posições seguem em `desks.placement` e `racks.placement`, polígonos em `sectors.polygon`, paredes/aberturas/fundo em `plans.geometry`, câmera em `plans.camera`. Mesas, pontos, setores, racks, equipamentos, portas e conexões não são recriados, apagados nem copiados para JSON. O snapshot não contém pontos/conexões e nenhuma tabela de cabeamento é escrita pelo salvamento.
+- `docs/GEOMETRIA.md` e `docs/IMPLEMENTACAO.md` documentam contrato, coordenadas, revisão, autorização e respostas. Nenhum editor Konva, importador ou fluxo de desfazer/refazer foi iniciado.
+- Referências de arquivos de fundo permanecem reservadas à etapa 14. O layout rejeita introdução/substituição de IDs de arquivos com **400**, sem aceitar referências novas não verificadas; permite preservar IDs de fundo preexistente, alterar sua transformação ou removê-lo.
+
+### Verificações
+
+| Categoria | Verificação | Resultado |
+|---|---|---|
+| Typecheck | `npm run typecheck` | API, testes, web e domínio aprovados. |
+| Build | `npm run build` | Domínio/API/web aprovados; bundle 284,57 kB (84,04 kB gzip). |
+| Domínio | `npm run test:domain` | **4/4**. |
+| API/PostgreSQL | `npm run test:layout` | **12/12**: round trip, comparação integral de pontos/equipamentos/portas/conexões, revisão desatualizada, duas gravações da mesma revisão (200/409 e estado integral do vencedor), edição cadastral em curso (409 sem deadlock/gravação parcial), IDs repetidos/inexistentes/de outra empresa/planta, alteração/inclusão/exclusão cadastral após leitura, campos extras e arquivos de fundo rejeitados, rack sem posição, viewer/gerente e rebaixamento com sessão existente. Banco QA criado e removido pelo teste. |
+| Upgrade PostgreSQL | `npm run test:db` | **36/36**. Instalação nova e upgrades 001→004 e 003→004 com dados sintéticos; o segundo compara 12 tabelas, incluindo racks, equipamentos, portas e conexões. Registros preservados e esquema igual ao banco novo; lock e checksum aprovados. |
+| Regressão API/PostgreSQL | `npm run test:park`, `npm run test:desks`, `npm run test:racks`, `npm run test:connections` | **9/9, 10/10, 13/13 e 13/13**. Sem regressões de autorização, filiação, posição em U ou cabeamento. |
+| Operação | `npm run db:status`, `docker compose ps`, `/api/health`, `git diff --check` | Migração 004 já aplicada ao volume de trabalho confirmada na revalidação; 001–004 aplicadas, sem edição das migrações existentes. API, banco e web healthy; web exposta somente em `127.0.0.1:5173`. Health HTTP 200/database up e `git diff --check` sem erros de whitespace. |
+
+Total após revalidação em **01/10/2026: 97 testes aprovados** nas suítes acima. O teste adicional de edição em curso reproduziu HTTP **503** por deadlock na implementação inicial; o salvamento agora rejeita o lock conflitante com **409** antes de gravar. Também foi corrigido HTTP **503** ao salvar rack sem posição. Campos extras e novas referências de fundo passaram a ser recusados. As consultas no mesmo cliente deixaram de ser enfileiradas por `Promise.all`, eliminando o aviso de depreciação do `pg` na suíte de layout.
+
+Os upgrades sintéticos comparam as linhas anteriores ignorando apenas a nova coluna `camera`. Nesta revalidação não houve migração pendente, reset de volume nem gravação no banco de trabalho; comparação de contagens e MD5 do conteúdo completo em **15 tabelas** confirmou dados idênticos antes/depois. Todos os bancos QA foram removidos pelos testes. Logs em `docs/evidencias/etapa11/validacao-*.txt` e snapshots em `banco-trabalho-antes.json`/`banco-trabalho-depois.json`, arquivos locais ignorados. Sem interface nova nesta etapa, teste visual, dispositivo físico ou produção.
+
+O app segue em [http://localhost:5173](http://localhost:5173); entre com a conta existente e consuma os endpoints descritos em [GEOMETRIA.md](GEOMETRIA.md). Não há interface de editor nesta etapa. `npm run dev:stop` para parar preservando volumes; `npm run dev:all` para subir novamente. **Pendências essenciais da etapa 11: nenhuma. Próxima etapa: 12 — Área de desenho e posicionamento de mesas/racks**, somente mediante solicitação própria.

@@ -133,7 +133,7 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
     {rack && selectedPortId && (() => {
       const selectedPort = rack.equipment.flatMap(item => item.ports).find(item => item.id === selectedPortId);
       return selectedPort ? <RackPortEditor key={selectedPort.id}
-        port={selectedPort} park={park} refresh={async () => { await load(); await refresh(); }} checkSession={checkSession}
+        port={selectedPort} writable={writable} park={park} refresh={async () => { await load(); await refresh(); }} checkSession={checkSession}
         close={() => setSelectedPortId('')} saved={async status => { setBusy(false); setSelectedPortId(''); setNotice(status); await load(); }} /> : null;
     })()}
     {writable && editRack && <form aria-label="Cadastro de rack" onSubmit={saveRack}>
