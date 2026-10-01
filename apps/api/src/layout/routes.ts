@@ -13,6 +13,33 @@ type LayoutRow = { revision: string; geometry: PlanLayout['geometry']; camera: P
 const parseRevision = (value: string) => Number(value);
 
 export function registerLayout(app: FastifyInstance, pool: pg.Pool) {
+  // Vincular um cadastro é uma operação explícita, fora do histórico de posições.
+  app.post<{ Params: Params & { rackId: string }; Body: { expectedRevision: number } }>('/api/companies/:companyId/plans/:planId/racks/:rackId', {
+    config: { access: 'company' }, schema: {
+      params: { ...params, required: [...params.required, 'rackId'], properties: { ...params.properties, rackId: uuid } },
+      body: { type: 'object', required: ['expectedRevision'], additionalProperties: false, properties: { expectedRevision: body.properties.expectedRevision } },
+    },
+  }, async request => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const plan = await client.query<{ unit_id: string; revision: string }>('SELECT unit_id,revision::text FROM plans WHERE company_id=$1 AND id=$2 FOR UPDATE', [request.company!.id, request.params.planId]);
+      if (!plan.rowCount) throw new HttpError(404, 'Planta não encontrada nesta empresa.');
+      if (Number(plan.rows[0]!.revision) !== request.body.expectedRevision) throw new HttpError(409, 'A revisão da planta mudou. Atualize antes de vincular o rack.');
+      const rack = await client.query<{ plan_id: string | null }>('SELECT plan_id FROM racks WHERE company_id=$1 AND unit_id=$2 AND id=$3 FOR NO KEY UPDATE NOWAIT', [request.company!.id, plan.rows[0]!.unit_id, request.params.rackId]);
+      if (!rack.rowCount) throw new HttpError(404, 'Rack não encontrado nesta unidade.');
+      if (rack.rows[0]!.plan_id !== null) throw new HttpError(409, 'Este rack já está vinculado a uma planta. Atualize a lista.');
+      await client.query('UPDATE racks SET plan_id=$3 WHERE company_id=$1 AND id=$2', [request.company!.id, request.params.rackId, request.params.planId]);
+      const updated = await client.query('SELECT revision::text FROM plans WHERE company_id=$1 AND id=$2', [request.company!.id, request.params.planId]);
+      await client.query('COMMIT');
+      return { revision: Number(updated.rows[0]!.revision) };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (['55P03', '40P01'].includes((error as { code?: string }).code ?? '')) throw new HttpError(409, 'Um cadastro está em edição. Aguarde e atualize antes de vincular.');
+      throw error;
+    } finally { client.release(); }
+  });
+
   app.get<{ Params: Params }>('/api/companies/:companyId/plans/:planId/layout', { config: { access: 'company' }, schema: { params } }, async request => {
     const result = await pool.query<LayoutRow>(`SELECT p.revision::text,p.geometry,p.camera,
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',d.id,'placement',d.placement) ORDER BY d.id) FROM desks d WHERE d.company_id=p.company_id AND d.plan_id=p.id),'[]') desks,

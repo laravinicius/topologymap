@@ -2,9 +2,9 @@
 
 Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Git. Capturas, logs e relatórios permanecem disponíveis na máquina onde foram gerados; os resultados das verificações continuam registrados neste documento. Os caminhos abaixo são referências locais e não acompanham novas cópias do repositório.
 
-Atualizado em 01/10/2026 (America/Sao_Paulo), após a correção e revalidação da etapa 10, preservando a etapa 11.
+Atualizado em 01/10/2026 (America/Sao_Paulo), após implementação e validação da etapa 12.
 
-**Estado atual:** etapas 01 a 11 concluídas. Ambiente local saudável, autenticação, administração global, autorização por empresa, hierarquia, mesas/pontos, racks/equipamentos/portas, API transacional, associação pela mesa e pela porta e persistência do layout disponíveis. As duas falhas de interface da etapa 10 passaram na revalidação descrita abaixo; alterações locais da etapa 11 preservadas. Dados de trabalho preservados; QA sintético somente em bancos separados. Etapas 12 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
+**Estado atual:** etapas 01 a 12 concluídas. Ambiente local saudável, autenticação, administração global, autorização por empresa, hierarquia, mesas/pontos, racks/equipamentos/portas, conexões pelas duas extremidades, persistência versionada e editor Konva da planta disponíveis. Dados de trabalho preservados; QA sintético somente em bancos separados. Etapas 13 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
 
 ## Etapa 01 — Workspace e Docker local
 
@@ -663,7 +663,7 @@ Capturas: `rack-{1280,390}.png`, `rack-controles-{1280,390}.png`, `rack-portas-{
 
 ## Etapa 11 — Persistência do layout e revisões
 
-**Situação: Concluída em 01/10/2026.** Documento de geometria persistido sem dependência do Konva, com leitura/salvamento versionados, validação das referências atuais e controle transacional de revisão. **Etapa 12 — Área de desenho e posicionamento permanece pendente.**
+**Situação: Concluída em 01/10/2026.** Documento de geometria persistido sem dependência do Konva, com leitura/salvamento versionados, validação das referências atuais e controle transacional de revisão. Registro da entrega de persistência; o editor entregue posteriormente está na seção da etapa 12 abaixo.
 
 ### Entrega
 
@@ -692,3 +692,44 @@ Total após revalidação em **01/10/2026: 97 testes aprovados** nas suítes aci
 Os upgrades sintéticos comparam as linhas anteriores ignorando apenas a nova coluna `camera`. Nesta revalidação não houve migração pendente, reset de volume nem gravação no banco de trabalho; comparação de contagens e MD5 do conteúdo completo em **15 tabelas** confirmou dados idênticos antes/depois. Todos os bancos QA foram removidos pelos testes. Logs em `docs/evidencias/etapa11/validacao-*.txt` e snapshots em `banco-trabalho-antes.json`/`banco-trabalho-depois.json`, arquivos locais ignorados. Sem interface nova nesta etapa, teste visual, dispositivo físico ou produção.
 
 O app segue em [http://localhost:5173](http://localhost:5173); entre com a conta existente e consuma os endpoints descritos em [GEOMETRIA.md](GEOMETRIA.md). Não há interface de editor nesta etapa. `npm run dev:stop` para parar preservando volumes; `npm run dev:all` para subir novamente. **Pendências essenciais da etapa 11: nenhuma. Próxima etapa: 12 — Área de desenho e posicionamento de mesas/racks**, somente mediante solicitação própria.
+
+## Etapa 12 — Área de desenho e posicionamento
+
+**Situação: Concluída em 01/10/2026.** Editor 2D em Konva integrado à persistência/revisões existentes. **Etapas 13 a 21 permanecem pendentes.** Sem migração, dados sintéticos no banco de trabalho, commit, push ou publicação.
+
+### Entrega e arquivos principais
+
+- `PlanEditor.tsx`, `PlanCanvas.tsx` e `layoutEditor.ts`: seleção no canvas/lista HTML, zoom no cursor, câmera por arraste/botões, enquadramento considerando rotação, grade adaptativa e ajuste opcional a 0,25 m. Mesas e racks cadastrados podem ser posicionados, dimensionados e girados pelas alças ou por campos em metros; botões de rotação e alinhamento à grade/centros X/Y. IDs existentes são a referência de cada representação; sem cópias de pontos, equipamentos, portas ou conexões no histórico.
+- Salvamento explícito pelo PUT da etapa 11 e indicação de alterações pendentes. Histórico de até 100 operações somente de posições; salvar mantém o histórico, enquanto recarga/reconciliação o substitui. Câmera fica separada. Falha mantém o rascunho; 409 bloqueia novas edições/gravações até recarregar com descarte confirmado ou reconciliar posições locais de IDs atuais. Nenhum retry automático. A reconciliação preserva alterações remotas em objetos não editados localmente; se o mesmo objeto mudou nas duas sessões, prevalece sua posição local, com conferência e salvamento explícitos.
+- `layout/routes.ts`: POST para vincular rack cadastrado sem planta, mesma empresa/unidade, revisão esperada e locks; preserva datacenter/equipamentos/portas e usa o trigger existente para avançar a revisão. Vinculação fora do histórico, com layout sem pendências; depois a posição é editada pelo PUT. Rack com posição nula pode ser posicionado; retirar posição mantém seu cadastro/filiação.
+- `navigation.ts`, `Park.tsx`, `Workspace.tsx` e `App.tsx`: integração contextual, carregamento sob demanda e guard antes da navegação interna/logout, Voltar/Avançar e recarga/fechamento. Cancelar a saída mantém contexto e rascunho. Visualizador seleciona/consulta e navega pela câmera, sem controles ou chamadas de escrita; propriedades desabilitadas e API autorizando cada requisição.
+- Dependências exatas Konva 10.7.0/react-konva 19.3.0 e lockfile. CSS existente adaptado à área de planta e lista/propriedades responsivas, sem antecipar identidade visual, paredes/setores, importação ou busca integrada. Geometria, setores e referências de fundo existentes passam intactos pelo snapshot.
+- `apps/web/test/layoutEditor.test.ts`, suíte de layout da API ampliada e servidor opcional de QA `--stage12`. README, IMPLEMENTACAO, GEOMETRIA e plano atualizados.
+
+### Verificações
+
+| Categoria | Procedimento | Resultado |
+|---|---|---|
+| Typecheck/build | `npm run typecheck`; `npm run build` | Aprovados em domínio/API/web. Konva/editor em chunk separado, sem aviso de bundle maior que 500 kB. |
+| Histórico/geometria do cliente | `npm run test:layout-editor` | **3/3**: histórico não restaura membro removido nem câmera/geometria/setor; reconciliação mantém apenas posições locais de IDs atuais, preservando mudanças remotas restantes; enquadramento com rotação e coordenadas negativas. |
+| API/PostgreSQL | `npm run test:layout` | **13/13**: contratos/revisões/concorrência e integridade anteriores; novo vínculo de rack com revisão, empresa/unidade, posição nula e 403 de visualizador; tabelas de cabeamento integralmente preservadas. |
+| Regressão API/PostgreSQL | `npm run test:racks`; `npm run test:connections` | **13/13 + 13/13**, preservando ocupação em U, IDs, portas, relação única, concorrência, estado esperado e papéis/revogação. |
+| Navegador — mesa/rack | Chromium com Playwright CLI, gerente, 1280 × 900 | Mesa de oito pontos: arraste X 1→2 m e Y 2→2,5 m com grade; Girar 90°, desfazer/refazer, campos e salvar. Rack existente vinculado, posicionado em X 4/Y 2, dimensionado 0,8 × 1,2 m e girado 30°. |
+| Navegador — alças/alinhamento/câmera | Mouse real nas alças e canvas; campos e botões | Dimensionamento aproximadamente 1,6 × 0,8→2 × 1 m; alça de rotação chega a 90°. Alinhamento à grade e de centros Y aprovado. Câmera por arraste, zoom no cursor e por botão, deslocamento por botão e enquadramento aprovados. |
+| Navegador — persistência/integridade | Salvar, recarregar, comparar snapshot e DTOs completos da mesa/rack | Posições/dimensões/rotação/câmera reproduzidas. IDs e conteúdo de pontos/equipamentos/portas/conexões preservados integralmente após os movimentos. O vínculo gráfico do rack acrescenta planta/andar ao caminho derivado, mantendo a relação canônica. |
+| Navegador — histórico independente | Transferir conexão real para outro ponto, depois desfazer/refazer posições | Nova revisão e extremidades da conexão permanecem intactas. Histórico não grava cabeamento. |
+| Navegador — revisão/conflito | Outra aba grava a mesma planta, depois gerente tenta PUT antigo | HTTP **409**; posição local mantida, salvamento bloqueado. Reconciliar manteve a mesa editada localmente e a posição remota do rack; conferência e novo salvamento explícitos aprovados. |
+| Navegador — falha de gravação | Interceptar PUT com **503**, depois falha de transporte | Erros visíveis, edição/rotação e indicação pendente preservadas; revisão do banco não avança. Recuperação seguida de salvamento aprovada. |
+| Navegador — cadastro removido | Criar mesa sintética, editar posição, remover ponto livre/mesa em outra sessão, salvar/reconciliar | PUT antigo recebe 409; mesa removida desaparece do rascunho e não é restaurada pelo histórico. Mesas/racks restantes preservados. |
+| Navegador — saída pendente | Voltar do navegador, logout e recarga, cancelar os três avisos | Contexto da planta e rotação local preservados após os cancelamentos; salvamento posterior aprovado. |
+| Navegador — visualizador | Seleção por Enter, consulta, câmera, chamadas diretas PUT/POST | Sem salvar/desfazer/refazer/propriedades editáveis/vinculação. **Zero escritas iniciadas pela interface**. Chamadas diretas retornam **403/403**, snapshot idêntico. Câmera local não gera edição pendente. |
+| Navegador — responsivo/visual | Capturas inspecionadas de gerente/visualizador; viewport 390 × 844 | Documento não ultrapassa o viewport; canvas contido e lista/propriedades empilhadas. Nenhum teste em aparelho físico. |
+| Preservação/operação | Contagens e MD5 ordenados por ID em 15 tabelas antes/depois; status do banco/Compose/health; `git diff --check` | Banco de trabalho **idêntico**, incluindo usuários/sessões. Migrações 001–004 aplicadas, sem nova migração/reset; nenhum banco QA restante. Serviços principais healthy, web somente em loopback; whitespace aprovado. |
+
+Total: **42 testes automatizados aprovados**, além dos cenários no navegador. A inspeção real das alças identificou a necessidade de sincronizar também o node ao ajustar à grade (uma prop que permanece igual não é reaplicada pelo modo não estrito do react-konva); correção revalidada. A margem de enquadramento passou a acomodar a alça de rotação. Voltar foi centralizado no Workspace antes de atualizar o contexto, e passou nos cancelamentos. O harness aguarda a pintura do canvas antes de clicar nas alças; erros de medição durante iterações e de repetição de salvamento sem mudanças foram corrigidos no próprio QA, com rodadas finais aprovadas.
+
+QA em `http://localhost:5176`, API temporária `api:3002`, banco exclusivo `topologia_new_test12_browser_fe82267acd45`, administrador/gerente/visualizador e fixtures sintéticos. Navegadores, servidor/API temporário e container `qa12_web` encerrados; banco QA, sessões, `runtime.json` e os três arquivos de autenticação removidos. Nenhuma fixture no banco de trabalho; volumes preservados. API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` permanecem em execução e saudáveis.
+
+Evidências locais ignoradas em `output/playwright/etapa12/`: `typecheck.txt`, `build.txt`, `editor-history.txt`, `api-{layout,racks,connections}.txt`, `browser-flows-final.txt`, `browser-handles-final.txt`, `browser-conflicts-final.txt`, `browser-deletion.txt`, `browser-viewer-final.txt`, `navigation-{back,logout,reload,result}.txt`, snapshots `banco-trabalho-antes.json`/`banco-trabalho-depois.json`, `banco-status-final.json` e `diff-check.txt`. Capturas: `planta-gerente.png`, `planta-alcas.png`, `conflito-revisao.png`, `falha-gravacao.png`, `planta-390.png` e `planta-visualizador{,-390}.png`.
+
+Para validar manualmente: abra [http://localhost:5173](http://localhost:5173), entre com a conta existente e selecione Empresa → Unidade → Andar → Planta. Use a lista ou o canvas, altere posição/medidas/rotação e **Salvar layout**; reabra para conferir. Racks sem planta podem ser vinculados pela lista da própria área. `npm run dev:stop` para parar preservando volumes; `npm run dev:all` para subir. **Pendências essenciais da etapa 12: nenhuma. Próxima etapa: 13 — Paredes, portas, janelas e setores**, somente mediante solicitação própria. Sem validação em dispositivo físico ou produção.

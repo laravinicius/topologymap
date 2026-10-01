@@ -25,6 +25,7 @@
     "test:racks": "docker compose exec -T api npm run test:racks --workspace @topologia-new/api",
     "test:connections": "docker compose exec -T api npm run test:connections --workspace @topologia-new/api",
     "test:layout": "docker compose exec -T api npm run test:layout --workspace @topologia-new/api",
+    "test:layout-editor": "npm run build --workspace @topologia-new/domain && tsx --test apps/web/test/layoutEditor.test.ts",
     "admin:create": "docker compose exec api npm run admin:create --workspace @topologia-new/api"
   }
 }

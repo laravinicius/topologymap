@@ -3,6 +3,7 @@ import type { AuthSession, AccessibleCompany, ParkSnapshot } from '@topologia-ne
 import { api, ApiError, message } from './api';
 import { Administration } from './Administration';
 import { Park } from './Park';
+import { confirmNavigation } from './navigation';
 
 export function Workspace({ session, checkSession }: { session: AuthSession; checkSession: () => Promise<void> }) {
   const [companies, setCompanies] = useState<AccessibleCompany[]>([]);
@@ -12,6 +13,7 @@ export function Workspace({ session, checkSession }: { session: AuthSession; che
   const [error, setError] = useState(''), [loading, setLoading] = useState(true);
   const [admin, setAdmin] = useState(location.pathname === '/administracao');
   const requestNumber = useRef(0);
+  const previousURL = useRef(location.href);
   const refresh = useCallback(async () => {
     const number = ++requestNumber.current;
     try {
@@ -38,10 +40,16 @@ export function Workspace({ session, checkSession }: { session: AuthSession; che
     return () => { requestNumber.current++; window.clearInterval(interval); window.removeEventListener('focus', focus); };
   }, [refresh]);
   useEffect(() => {
-    const sync = () => { setAdmin(location.pathname === '/administracao'); setSelected(new URLSearchParams(location.search).get('empresa') ?? ''); };
-    window.addEventListener('popstate', sync); return () => window.removeEventListener('popstate', sync);
+    const sync = (event: PopStateEvent) => {
+      if (event.isTrusted && !confirmNavigation(location.href)) {
+        event.stopImmediatePropagation(); history.pushState(null, '', previousURL.current); return;
+      }
+      previousURL.current = location.href;
+      setAdmin(location.pathname === '/administracao'); setSelected(new URLSearchParams(location.search).get('empresa') ?? '');
+    };
+    window.addEventListener('popstate', sync, true); return () => window.removeEventListener('popstate', sync, true);
   }, []);
-  function navigate(path: string) { history.pushState(null, '', path); window.dispatchEvent(new PopStateEvent('popstate')); }
+  function navigate(path: string) { if (!confirmNavigation(path)) return; history.pushState(null, '', path); window.dispatchEvent(new PopStateEvent('popstate')); }
   return <>
     <nav className="workspace-nav" aria-label="Navegação principal">
       <button className={!admin ? undefined : 'secondary'} aria-current={!admin ? 'page' : undefined} onClick={() => navigate(`/parque${selected ? `?empresa=${encodeURIComponent(selected)}` : ''}`)}>Empresas autorizadas</button>

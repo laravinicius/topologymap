@@ -1,6 +1,6 @@
 # Arquitetura e plano de implementação
 
-Status: etapas 01 a 10 implementadas e validadas localmente; demais funcionalidades continuam como proposta técnica. Atualizado em 01/10/2026. Evidências em [PROGRESSO.md](PROGRESSO.md).
+Status: etapas 01 a 12 implementadas e validadas localmente; demais funcionalidades continuam como proposta técnica. Atualizado em 01/10/2026. Evidências em [PROGRESSO.md](PROGRESSO.md).
 
 Os requisitos confirmados e os detalhes propostos estão separados em [ESCOPO.md](ESCOPO.md).
 
@@ -102,6 +102,22 @@ Transferir/desvincular exigem revisão explícita e confirmação, preservando o
 Os pedidos assíncronos de destinos usam geração para descartar respostas antigas; trocar um pai limpa seus filhos. Controles ficam bloqueados durante carregamento/gravação, há proteção contra submissão repetida e feedback acessível de sucesso/erro. Visualizador não recebe controles nem editor; perda do papel fecha a edição ao revalidar, e a política central da API exige autorização atual para cada escrita. QA local isolado `browser-server.ts --stage09` aceita `QA_ORIGIN` para uma porta alternativa. Oito pontos, duas associações distintas, consultas inversas, cancelamentos, conflitos entre sessões, erro de rede, rebaixamento de papel e viewport 390 × 844 verificados no navegador; detalhes em [PROGRESSO.md](PROGRESSO.md#etapa-09--associação-pela-mesa).
 
 ## 4. Geometria e editor
+
+### Área de planta — etapa 12
+
+`PlanEditor.tsx` integra o snapshot/revisão da etapa 11 a `PlanCanvas.tsx`, com Konva **10.7.0** e react-konva **19.3.0**, compatível com React 19.3.0. Dependências fixadas no lockfile; o editor é carregado sob demanda ao abrir uma planta, mantendo Konva fora do bundle inicial das demais telas. A identidade visual existente foi mantida; etapa 18 não iniciada.
+
+O adaptador usa **80 pixels por metro** antes do zoom. Retângulos são ancorados no centro; as alças convertem escala em largura/profundidade reais e normalizam a rotação horária em `[0,360)`. O node é sincronizado explicitamente ao terminar a transformação, inclusive quando o ajuste à grade devolve o mesmo valor anterior. Roda do mouse amplia no cursor; ferramentas/botões movem a câmera e enquadram os objetos incluindo sua rotação. A margem de enquadramento acomoda a alça de rotação. Grade adaptativa visível; ajuste opcional dos centros a **0,25 m**, rotação com encaixe a 45°, alinhamento X/Y entre centros e alinhamento manual à grade.
+
+A lista HTML equivalente permite selecionar por teclado e consultar nomes/IDs. Campos de X/Y, largura/profundidade e rotação, Aplicar propriedades, Girar 90° e botões da câmera oferecem alternativas ao arraste. As alterações só são persistidas com **Salvar layout**; o estado pendente compara o rascunho com a última revisão salva. A câmera de um visualizador é local, sem indicação de edição pendente, alças ou controles de escrita. Durante gravações o desenho e a navegação ficam bloqueados.
+
+Desfazer/refazer guarda até **100 operações locais de posições** de mesas/racks, sem câmera, cadastros ou cabeamento. Aplica somente a IDs existentes no snapshot atual. Salvar não elimina esse histórico; recarregar o substitui. Em HTTP 409, edição/salvamento/histórico são bloqueados até **Recarregar layout** (confirma descarte) ou **Reconciliar posições locais**. A reconciliação relê a revisão e mantém somente as posições alteradas localmente de IDs que continuam presentes; mudanças remotas nos demais objetos são preservadas. Há nova revisão explícita pelo usuário antes de salvar; não há retry automático. Se o mesmo objeto tiver mudado nas duas sessões, a reconciliação prioriza sua posição local, conforme o botão e o feedback, exigindo conferência. Falhas HTTP/rede mantêm o rascunho e a revisão esperada; se a resposta se perder após commit, nova tentativa recebe 409 e segue esse procedimento.
+
+Foco/intervalo de 30 segundos detectam uma revisão posterior sem substituir o rascunho. Atualizações de metadados/papéis não recarregam as posições silenciosamente. A navegação interna e o logout consultam o guard do editor; Voltar/Avançar são interceptados no Workspace antes de alterar o contexto e restauram a URL ao cancelar. `beforeunload` protege recarga/fechamento; sair com descarte confirmado elimina o histórico local.
+
+Para racks cadastrados sem planta, `POST /api/companies/:companyId/plans/:planId/racks/:rackId` recebe `{expectedRevision}` e vincula o ID existente **somente a uma planta da mesma unidade**, com autorização central, lock da planta e lock NOWAIT do rack. Rack já vinculado, revisão antiga ou edição em curso retorna 409; unidade/empresa incompatível retorna 404; visualizador recebe 403. A revisão avança pelo trigger existente da migração 004. A vinculação exige layout sem alterações pendentes, é persistida separadamente e limpa o histórico; a posição inicial é nula. Não transfere rack de outra planta nem altera datacenter/equipamentos/portas. Posicionar/dimensionar/girar ou retirar a posição passa pelo PUT de layout existente. Não foi necessária migração.
+
+Paredes, aberturas, setores e referências de fundo existentes são preservados integralmente no snapshot; não foram adicionadas ferramentas das etapas 13/14. Referências de implementação: [Transformer do Konva](https://konvajs.org/docs/react/Transformer.html) e [zoom no cursor](https://konvajs.org/docs/sandbox/Zooming_Relative_To_Pointer.html). Procedimento e evidências em [PROGRESSO.md](PROGRESSO.md#etapa-12--área-de-desenho-e-posicionamento).
 
 O domínio armazenará IDs, posições e dimensões no sistema de coordenadas da planta. Pixels, zoom e deslocamento da câmera pertencem ao renderizador.
 

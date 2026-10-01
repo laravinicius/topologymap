@@ -11,7 +11,7 @@ import { hashPassword } from '../src/auth/password.js';
 test('etapa 11: layout estruturado, revisão e referências canônicas em PostgreSQL isolado', { timeout: 120000 }, async t => {
   const config = databaseConfig(), database = `topologia_new_test11_${randomBytes(6).toString('hex')}`;
   const root = new pg.Pool({ ...config, max: 1 }), pool = new pg.Pool({ ...config, database, max: 8 });
-  const password = randomBytes(24).toString('hex'), origin = 'http://localhost:5173';
+  const password = randomBytes(24).toString('hex'), viewerPassword = randomBytes(24).toString('hex'), origin = 'http://localhost:5173';
   let app: Awaited<ReturnType<typeof buildApp>> | undefined, created = false, cookie = '';
   let company = '', companyB = '', plan = '', planB = '', desk = '', deskB = '', rack = '', sector = '', sectorB = '', point = '', port = '', connection = '';
   try {
@@ -241,7 +241,6 @@ test('etapa 11: layout estruturado, revisão e referências canônicas em Postgr
     });
 
     await t.test('visualizador lê e não salva; estrutura geométrica inválida não persiste', async () => {
-      const viewerPassword = randomBytes(24).toString('hex');
       const createdUser = (await pool.query("INSERT INTO users(login,name,password_hash) VALUES ('viewer.layout.qa','Viewer QA',$1) RETURNING id", [await hashPassword(viewerPassword)])).rows[0]!.id;
       await pool.query("INSERT INTO company_permissions(user_id,company_id,role) VALUES ($1,$2,'viewer')", [createdUser, company]);
       const viewerLogin = await app!.inject({ method: 'POST', url: '/api/auth/login', headers: { origin }, payload: { login: 'viewer.layout.qa', password: viewerPassword } });
@@ -261,6 +260,27 @@ test('etapa 11: layout estruturado, revisão e referências canônicas em Postgr
       await pool.query("UPDATE company_permissions SET role='viewer' WHERE user_id=$1", [createdUser]);
       assert.equal((await app!.inject({ method: 'PUT', url, headers: { origin, cookie: viewerCookie }, payload: { expectedRevision: managed.revision, layout: managed.layout } })).statusCode, 403);
       assert.deepEqual(await read(), managed);
+    });
+    await t.test('etapa 12: vínculo explícito de rack protege revisão, unidade, filiação e cabeamento', async () => {
+      const newRack = (await pool.query("INSERT INTO racks(company_id,unit_id,datacenter_id,name,capacity_u) VALUES ($1,$2,$3,'Rack sem planta',24) RETURNING id", [company, unit, dc])).rows[0]!.id;
+      const cables = [];
+      for (const table of ['points', 'equipment', 'ports', 'connections']) cables.push((await pool.query(`SELECT to_jsonb(t) FROM ${table} t ORDER BY id`)).rows);
+      const current = await read(), attach = `/api/companies/${company}/plans/${plan}/racks/${newRack}`;
+      assert.equal((await call('POST', attach, { expectedRevision: current.revision - 1 })).statusCode, 409);
+      const revisionB = Number((await pool.query('SELECT revision FROM plans WHERE id=$1', [planB])).rows[0]!.revision);
+      assert.equal((await call('POST', `/api/companies/${companyB}/plans/${planB}/racks/${newRack}`, { expectedRevision: revisionB })).statusCode, 404);
+      assert.equal((await call('POST', attach, { expectedRevision: current.revision })).statusCode, 200);
+      const after = await read(); assert.equal(after.revision, current.revision + 1);
+      assert.deepEqual(after.layout.racks.find((item: { id: string }) => item.id === newRack), { id: newRack, placement: null });
+      assert.equal((await call('POST', attach, { expectedRevision: after.revision })).statusCode, 409);
+      for (const [index, table] of ['points', 'equipment', 'ports', 'connections'].entries()) assert.deepEqual((await pool.query(`SELECT to_jsonb(t) FROM ${table} t ORDER BY id`)).rows, cables[index]);
+      const otherUnit = (await pool.query("INSERT INTO units(company_id,name) VALUES ($1,'Outra unidade') RETURNING id", [company])).rows[0]!.id;
+      const otherDc = (await pool.query("INSERT INTO datacenters(company_id,unit_id,name) VALUES ($1,$2,'Outro DC') RETURNING id", [company, otherUnit])).rows[0]!.id;
+      const otherRack = (await pool.query("INSERT INTO racks(company_id,unit_id,datacenter_id,name,capacity_u) VALUES ($1,$2,$3,'Outro rack',24) RETURNING id", [company, otherUnit, otherDc])).rows[0]!.id;
+      assert.equal((await call('POST', `/api/companies/${company}/plans/${plan}/racks/${otherRack}`, { expectedRevision: after.revision })).statusCode, 404);
+      const viewer = (await app!.inject({ method: 'POST', url: '/api/auth/login', headers: { origin }, payload: { login: 'viewer.layout.qa', password: viewerPassword } }));
+      assert.equal(viewer.statusCode, 200);
+      assert.equal((await app!.inject({ method: 'POST', url: attach, headers: { origin, cookie: viewer.headers['set-cookie']!.toString().split(';')[0]! }, payload: { expectedRevision: after.revision } })).statusCode, 403);
     });
   } finally {
     if (app) await app.close();

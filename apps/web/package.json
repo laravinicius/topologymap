@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "@topologia-new/domain": "0.1.0",
+    "konva": "10.7.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "react-konva": "19.3.0"
   },
   "devDependencies": {
     "@types/node": "24.19.0",

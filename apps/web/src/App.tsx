@@ -4,6 +4,7 @@ import type { AuthSession } from '@topologia-new/domain';
 import { HealthPanel } from './HealthPanel';
 import { api, ApiError, message } from './api';
 import { Workspace } from './Workspace';
+import { confirmNavigation } from './navigation';
 
 export function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -67,6 +68,7 @@ export function App() {
     finally { authAction.current = false; setBusy(false); }
   }
   async function leave() {
+    if (!confirmNavigation()) return;
     authEpoch.current++; authAction.current = true;
     setBusy(true); setActionError('');
     try {

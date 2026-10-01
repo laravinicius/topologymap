@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { NamedEntity, ParkSnapshot, Unit } from '@topologia-new/domain';
 import { api, ApiError, json, message } from './api';
 import { Desks } from './Desks';
 import { Racks } from './Racks';
+import { confirmNavigation } from './navigation';
+const PlanEditor = lazy(() => import('./PlanEditor').then(module => ({ default: module.PlanEditor })));
 
 export function navigatePark(changes: Record<string, string>) {
   const query = new URLSearchParams(location.search);
@@ -11,7 +13,9 @@ export function navigatePark(changes: Record<string, string>) {
   if (['unidade', 'andar', 'planta', 'datacenter'].some(key => key in changes)) { query.delete('rack'); query.delete('equipamento'); }
   if ('rack' in changes) query.delete('equipamento');
   for (const [key, value] of Object.entries(changes)) { if (value) query.set(key, value); else query.delete(key); }
-  history.pushState(null, '', `/parque?${query}`);
+  const destination = `/parque?${query}`;
+  if (!confirmNavigation(destination)) return;
+  history.pushState(null, '', destination);
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
@@ -59,7 +63,7 @@ function Collection({ title, singular, gender = 'o', path, items, writable, sele
       <label htmlFor={fieldId}>Nome {gender === 'a' ? 'da' : 'do'} {singular}</label>
       <input id={fieldId} value={name} onChange={e => setName(e.target.value)} required maxLength={200} pattern=".*\S.*" disabled={busy} autoFocus />
       {unit && <><label htmlFor={classificationId}>Classificação da unidade</label><input id={classificationId} list="unit-classifications" value={classification} onChange={e => setClassification(e.target.value)} required maxLength={200} pattern=".*\S.*" disabled={busy} /><datalist id="unit-classifications"><option value="Matriz" /><option value="Filial" /><option value="CD" /></datalist><p className="intro hint">Matriz, Filial, CD ou outra identificação livre.</p></>}
-      {singular === 'planta' && <p className="intro">Você pode criar a planta sem imagem. O desenho e a importação serão disponibilizados nas próximas etapas.</p>}
+      {singular === 'planta' && <p className="intro">Você pode criar a planta sem imagem. A área de planta permite posicionar mesas e racks cadastrados.</p>}
       <div className="park-actions"><button type="submit" disabled={busy}>Salvar {singular}</button><button type="button" className="secondary" disabled={busy} onClick={() => { setEditing(null); setError(''); }}>Cancelar</button></div>
     </form>}
     {writable && deleting && <div className="delete-confirm" role="group" aria-label={`Confirmar exclusão de ${deleting.name}`}>
@@ -96,7 +100,8 @@ export function Park({ data, refresh, checkSession }: { data: ParkSnapshot; refr
       {floor ? <div key={floor.id}>
         <h3>Andar: {floor.name}</h3>
         <Collection {...common} title="Plantas" singular="planta" gender="a" path={`${base}/units/${unit.id}/floors/${floor.id}/plans`} items={data.plans.filter(item => item.floorId === floor.id)} selected={plan?.id} select={id => navigatePark({ planta: id, datacenter: '' })} />
-        {plan && <div key={plan.id}><section className="park-detail"><h4>Planta: {plan.name}</h4><p>Cadastre mesas e pontos abaixo. Desenho e importação serão disponibilizados nas próximas etapas.</p></section>
+        {plan && <div key={plan.id}><section className="park-detail"><h4>Planta: {plan.name}</h4><p>Posicione os objetos na área de planta; cadastre mesas e pontos abaixo.</p></section>
+          <Suspense fallback={<p role="status">Carregando área de planta…</p>}><PlanEditor {...common} park={data} planId={plan.id} unitId={unit.id} floorId={floor.id} /></Suspense>
           <Desks {...common} park={data} path={`${base}/units/${unit.id}/floors/${floor.id}/plans/${plan.id}/desks`} selected={query.get('mesa') ?? ''} />
         </div>}
       </div> : <p className="empty-state">Selecione um andar para consultar suas plantas.</p>}
