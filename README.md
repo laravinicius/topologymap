@@ -101,7 +101,7 @@ API sob `/api/companies/:companyId/units/:unitId/floors/:floorId/plans/:planId/d
 
 ## Racks, equipamentos e portas
 
-Selecione empresa → unidade → datacenter e use **Novo rack**. Informe nome e capacidade em U. Abra o rack e use **Novo equipamento**: escolha equipamento genérico ou patch panel, nome, tipo livre, U inicial e altura. Para patch panel, informe a quantidade de portas (por exemplo, 24 ou 48). Equipamento e portas são criados em uma transação. A lista mostra o intervalo ocupado em U, e o detalhe do patch panel mostra as portas **Livre/Ocupada**, com edição de nomes. A frente gráfica será feita na etapa 10; conexão será implementada na etapa 08.
+Selecione empresa → unidade → datacenter e use **Novo rack**. Informe nome e capacidade em U. Abra o rack e use **Novo equipamento**: escolha equipamento genérico ou patch panel, nome, tipo livre, U inicial e altura. Para patch panel, informe a quantidade de portas (por exemplo, 24 ou 48). Equipamento e portas são criados em uma transação. A lista mostra o intervalo ocupado em U, e o detalhe do patch panel mostra as portas **Livre/Ocupada**, com edição de nomes e caminho da conexão. A associação pela mesa está disponível; a frente gráfica e associação pela porta serão feitas na etapa 10.
 
 Limites: capacidade/U inicial/altura inteiras de 1 a 1000; portas de 1 a 512; nome/tipo de 1 a 200 caracteres, sem normalizar a grafia. O equipamento precisa caber inteiro e não pode compartilhar U com outro. Conflitos retornam 409, inclusive na concorrência. Editar posição/altura/nome/tipo mantém IDs, portas e vínculos; o cadastro genérico/patch panel e os pais são imutáveis. Aumentar portas mantém as existentes. Reduzir pede confirmação e elimina somente as últimas portas sem conexão. Reduzir capacidade com equipamentos fora do novo limite é bloqueado. Excluir rack exige ausência de equipamentos; excluir equipamento exige ausência de portas; excluir porta exige ausência de conexão. Não há remoção em cascata.
 
@@ -176,6 +176,7 @@ npm run test:access    # administração e autorização por empresa; PostgreSQL
 npm run test:park      # hierarquia, filiações, dependências e acesso
 npm run test:desks     # mesas/pontos, transações, preservação e concorrência
 npm run test:racks     # racks/equipamentos/portas, capacidade, lotes e concorrência
+npm run test:connections # vínculos, transferência/desvinculação, estado esperado e concorrência
 ```
 
 Cada migração SQL é transacional e registrada com SHA-256 em `schema_migrations`. Um lock no PostgreSQL serializa migradores simultâneos. Falhas revertem a versão inteira; versões anteriores permanecem aplicadas. Não edite arquivos já aplicados: acrescente a próxima versão sequencial. Não há comando de reset/down de esquema.
@@ -229,4 +230,10 @@ O projeto Compose é `topologia_new`. Todos os comandos acima operam somente ess
 
 ## Limites desta entrega
 
-A próxima etapa é **07 — Racks, equipamentos e portas**, pendente e não iniciada. Autenticação, administração, hierarquia e mesas/pontos estão disponíveis. Associação de pontos, frente do rack, editor 2D, importação, QR Code e produção permanecem nas etapas previstas. A identidade Microgate completa permanece na etapa 18; logos serão fornecidos posteriormente.
+Etapas 01 a 09 concluídas. Autenticação, administração, hierarquia, mesas/pontos, racks/equipamentos/portas, API transacional e associação pela mesa estão disponíveis. O caminho da conexão aparece nos detalhes da mesa e da porta. Na mesa, use **Associar** e selecione datacenter → rack → patch panel → porta pelos nomes. As portas mostram Livre/Ocupada e a origem das ocupadas; somente portas livres podem ser escolhidas. Destinos podem estar em outra unidade da mesma empresa, sem alterar os filtros da mesa.
+
+Para um ponto associado, use **Transferir** → selecione a nova porta → **Revisar transferência** → **Confirmar transferência**, ou **Desvincular** → **Revisar desvinculação** → **Confirmar desvinculação**. Cancelar mantém a conexão. Se outra sessão alterar ponto/porta, a tela avisa, atualiza as consultas e exige fechar e abrir uma nova ação; não repete a escrita automaticamente. Visualizadores consultam sem controles de escrita e recebem 403 também pela API. Consulte [o contrato e o fluxo](docs/CONEXOES.md); `npm run test:connections` valida integridade e autorização em PostgreSQL sintético isolado.
+
+A próxima etapa é **10 — Visualização frontal do rack e associação pela porta**, pendente e não iniciada. Editor 2D, importação, QR Code e produção continuam nas etapas previstas. A identidade Microgate completa permanece na etapa 18; logos serão fornecidos posteriormente.
+
+QA opcional pela mesa: `apps/api/test/browser-server.ts --stage09` mantém o padrão de banco temporário e provisionamento sintético explícito. `QA_ORIGIN` permite configurar uma origem alternativa (usado `http://localhost:5175` nesta validação por ocupação de 5174); o proxy temporário aponta para `http://api:3002`. Encerrar o servidor por SIGTERM/stdin remove banco e credencial temporária. Consulte as evidências e os limites em [PROGRESSO.md](docs/PROGRESSO.md#etapa-09--associação-pela-mesa).

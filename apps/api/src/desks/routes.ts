@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { deskLimits, type DeskCreateInput, type DeskUpdateInput } from '@topologia-new/domain';
 import { HttpError } from '../auth/authorization.js';
 import { uuid } from '../admin/routes.js';
+import { connectionJson } from '../connections/query.js';
 
 type Context = { companyId: string; unitId: string; floorId: string; planId: string; deskId: string; pointId: string };
 const name = { type: 'string', minLength: 1, maxLength: 200, pattern: '\\S' };
@@ -19,7 +20,8 @@ const params = (extra: string[] = []) => ({ type: 'object', required: [...keys, 
 const config = { access: 'company' as const };
 const fields = 'd.id,d.name,d.company_id AS "companyId",d.plan_id AS "planId",d.sector_id AS "sectorId",d.placement,d.created_at AS "createdAt",d.updated_at AS "updatedAt"';
 const pointsQuery = `SELECT p.id,p.name,p.company_id AS "companyId",p.desk_id AS "deskId",p.ordinal,
-  p.created_at AS "createdAt",p.updated_at AS "updatedAt",c.id AS "connectionId"
+  p.created_at AS "createdAt",p.updated_at AS "updatedAt",c.id AS "connectionId",
+  ${connectionJson('c.company_id=p.company_id AND c.point_id=p.id')} AS connection
   FROM points p LEFT JOIN connections c ON c.company_id=p.company_id AND c.point_id=p.id
   WHERE p.company_id=$1 AND p.desk_id=$2 ORDER BY p.ordinal,p.id`;
 
@@ -63,7 +65,7 @@ export function registerDesks(app: FastifyInstance, pool: pg.Pool) {
       FROM desks d WHERE d.company_id=$1 AND d.plan_id=$2 ORDER BY d.name,d.id`, [request.params.companyId, request.params.planId])).rows };
   });
   app.get<{ Params: Context }>(detail, { config, schema: { params: params(['deskId']) } }, async request => {
-    // Mesa e pontos lidos no mesmo snapshot; não expõe destino nem implementa associação da etapa 08.
+    // Mesa, pontos e caminhos atuais lidos no mesmo snapshot.
     return transaction(async db => {
       await db.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
       const row = await desk(db, request.params);

@@ -4,4 +4,6 @@ export * from './access.js';
 export * from './park.js';
 export * from './desks.js';
 export * from './racks.js';
+export * from './connections.js';
+export * from './layout.js';
 export type { AuthUser, AuthSession, LoginInput } from './auth.js';

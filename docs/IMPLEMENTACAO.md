@@ -1,6 +1,6 @@
 # Arquitetura e plano de implementação
 
-Status: etapas 01 a 07 implementadas e validadas localmente; demais funcionalidades continuam como proposta técnica. Atualizado em 01/10/2026. Evidências em [PROGRESSO.md](PROGRESSO.md).
+Status: etapas 01 a 10 implementadas e validadas localmente; demais funcionalidades continuam como proposta técnica. Atualizado em 01/10/2026. Evidências em [PROGRESSO.md](PROGRESSO.md).
 
 Os requisitos confirmados e os detalhes propostos estão separados em [ESCOPO.md](ESCOPO.md).
 
@@ -71,7 +71,7 @@ Alterações destrutivas precisam indicar dependências. Não eliminar conexões
 
 Ocupação em U usa `int8range` gerado e exclusão GiST (`btree_gist`). A capacidade é protegida por testemunho interno `equipment.rack_capacity_u`, FK para a capacidade real do rack com ON UPDATE CASCADE e CHECK de limites na mesma linha. Essa escolha acrescenta redundância controlada para garantir redução/instalação/movimentação concorrentes de forma declarativa, inclusive diante de snapshots antigos. Não se usa CHECK que consulta outro registro nem validação baseada somente em leitura prévia. Contratos e exemplo de escrita estão em [database/README.md](../database/README.md).
 
-Usuários, sessões e permissões receberam estrutura na etapa 02. A autenticação central e o provisionamento explícito foram implementados na etapa 03; administração e autorização por empresa foram implementadas na etapa 04. A tabela única de conexões já tem FKs, unicidades e revisão automática; operações de associação/transferência com estado esperado continuam na etapa 08.
+Usuários, sessões e permissões receberam estrutura na etapa 02. A autenticação central e o provisionamento explícito foram implementados na etapa 03; administração e autorização por empresa foram implementadas na etapa 04. A tabela única de conexões tem FKs, unicidades e revisão automática; operações transacionais de associação/desvinculação/transferência e consulta nos dois sentidos foram entregues na etapa 08.
 
 ### Cadastros do parque — etapa 05
 
@@ -84,6 +84,22 @@ API em `apps/api/src/park/routes.ts`: coleções/detalhes de unidades, andares, 
 **Política adotada:** exclusão definitiva somente sem dependências, sem arquivamento ou cascata. Excluir empresas exige perfil global, cadastros vazios e concessões revogadas; demais exclusões exigem gerente autorizado ou administrador. O banco impede remover pais referenciados, inclusive plantas com mesas/setores/datacenters/racks e datacenters com racks. A interface confirma a intenção; a API traduz dependências em HTTP 409, sem limpar filhos/vínculos automaticamente. Filiação não é transferida nesta etapa. PostgreSQL desta máquina devolveu `23001` nas exclusões RESTRICT; o tratamento contempla esse código e `23503`, conforme os [SQLSTATE oficiais](https://www.postgresql.org/docs/current/errcodes-appendix.html).
 
 `npm run test:park` usa PostgreSQL isolado para CRUD, grafia/IDs/pais, papéis, entradas inválidas, cadeias cruzadas, dependências e criação de filho concorrente à exclusão do pai. Testes anteriores continuam passando. Fluxo de formulário em Chromium desktop/celular validado com empresa, matriz/filial, seus andares/plantas e dois datacenters na matriz; evidências no progresso.
+
+### Conexões — etapa 08
+
+`apps/api/src/connections/routes.ts`: GET pelas extremidades/ID, associação com INSERT simples, transferência explícita por POST e DELETE com estado esperado obrigatório. Empresa/papel usam a política central; destino precisa conter ponto e porta de patch panel da mesma empresa, sem restringir andar/unidade. Transações e unicidades/FKs da migração 002 protegem as alterações. UPDATE/DELETE condicionam empresa, ID, revisão e as duas extremidades esperadas, reavaliadas após uma escrita concorrente. Sem upsert ou remoção implícita de vínculos ocupados; conflito reverte a operação inteira. Transferir preserva ID e incrementa revisão pelo trigger existente. Não foi necessária migração.
+
+`connections/query.ts` monta em um statement o DTO e o caminho pelos nomes/IDs atuais. Leituras pelas extremidades distinguem entidade inexistente (404) de entidade livre (connection null). `packages/domain/src/connections.ts` compartilha estados esperados/caminho; detalhes de mesa e equipamento preservam connectionId e acrescentam connection. `apps/web/src/ConnectionPath.tsx` mostra o caminho nas listas existentes, revalidado por foco/30 segundos/Atualizar acessos. O formulário pela mesa foi entregue na etapa 09; associação pela porta segue na etapa 10. Contrato completo, códigos e procedimento de conflito em [CONEXOES.md](CONEXOES.md).
+
+`test/connections.test.ts` usa PostgreSQL isolado e locks de um terceiro cliente para garantir requisições simultâneas em voo, verificadas em pg_stat_activity. Cobre associação por ponto/porta, transferência por estado e por destino, remoção concorrente, rollback, andares distintos, renomeações, isolamento/FKs e autorização atual. QA opcional de navegador `browser-server.ts --stage08` segue o padrão de banco temporário, nunca o banco de trabalho.
+
+### Associação pela mesa — etapa 09
+
+`Desks.tsx` oferece Associar nos pontos livres e Transferir/Desvincular nos associados. `DeskConnectionEditor.tsx` seleciona datacenter, rack, patch panel e porta pelas coleções existentes da empresa. Datacenters de todas as unidades são identificados pela unidade e nome; equipamentos genéricos são excluídos. Portas mostram Livre/Ocupada e, nas ocupadas, mesa/ponto de origem; destinos ocupados ficam desabilitados. Contagens e resumo do destino são textuais. Nenhuma nova relação, rota de escrita, dependência ou migração foi necessária.
+
+Transferir/desvincular exigem revisão explícita e confirmação, preservando o ID, revisão e extremidades da leitura que abriu a ação. Mudanças detectadas na revalidação bloqueiam a ação antiga, sem atualizar seu estado esperado silenciosamente. HTTP 409 cancela a confirmação, relê o ponto, a porta anterior e o destino tentado, atualiza mesa/cadastros/ocupação e exige fechar e abrir uma nova ação. Falha de rede também exige revisão porque a resposta pode ter se perdido após o commit. Escritas bem-sucedidas revalidam as extremidades e consumidores existentes; outras sessões recebem a informação pelo foco, intervalo de 30 segundos ou atualização manual, sem WebSocket.
+
+Os pedidos assíncronos de destinos usam geração para descartar respostas antigas; trocar um pai limpa seus filhos. Controles ficam bloqueados durante carregamento/gravação, há proteção contra submissão repetida e feedback acessível de sucesso/erro. Visualizador não recebe controles nem editor; perda do papel fecha a edição ao revalidar, e a política central da API exige autorização atual para cada escrita. QA local isolado `browser-server.ts --stage09` aceita `QA_ORIGIN` para uma porta alternativa. Oito pontos, duas associações distintas, consultas inversas, cancelamentos, conflitos entre sessões, erro de rede, rebaixamento de papel e viewport 390 × 844 verificados no navegador; detalhes em [PROGRESSO.md](PROGRESSO.md#etapa-09--associação-pela-mesa).
 
 ## 4. Geometria e editor
 
@@ -164,13 +180,13 @@ Contratos e limites compartilhados em `packages/domain/src/desks.ts`, API em `ap
 
 Quantidade de 0 a 512, nomes de 1 a 200 caracteres sem normalização, coordenadas X/Y de -1000000 a 1000000 m, dimensões positivas até 10000 m, rotação [0,360). São limites técnicos de entrada, definidos nesta entrega. A sequência interna segue o maior ordinal existente, sem examinar números nos nomes; nomes sugeridos ocupados são pulados. Pontos existentes nunca são recriados durante ampliação. Alterar quantidade exige `expectedPointIds` na ordem atual, recusando alterações concorrentes/desatualizadas. Redução elimina somente os últimos pontos, após confirmação na interface e somente sem conexão. Excluir mesa exige ausência de pontos; não há cascata, desvinculação implícita ou arquivamento. Renomear/mover/girar mantém IDs, filiação, created_at e conexões.
 
-Lista e detalhe mantêm a mesa na URL (`mesa=UUID`), revalidam junto com o parque e limpam a seleção ao trocar um pai. Visualizadores consultam sem controles de escrita. Geometria permanece no contrato `Rectangle`, em metros e com centro como âncora; não implementa editor ou revisão de layout nesta etapa. Detalhe retorna `connectionId` e apresenta Associado/Não associado; edição de conexões e composição do destino continuam nas etapas 08/09. Testes em PostgreSQL separado e navegador real registrados no progresso.
+Lista e detalhe mantêm a mesa na URL (`mesa=UUID`), revalidam junto com o parque e limpam a seleção ao trocar um pai. Visualizadores consultam sem controles de escrita. Geometria permanece no contrato `Rectangle`, em metros e com centro como âncora; não implementa editor ou revisão de layout nesta etapa. Detalhe retorna `connectionId` e apresenta Associado/Não associado; consulta/edição de conexões e composição do destino foram entregues nas etapas 08/09. Testes em PostgreSQL separado e navegador real registrados no progresso.
 
 Referências consultadas para validação e locks: [Fastify — Validation and Serialization](https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/) e [PostgreSQL — Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html).
 
 ### Racks, equipamentos e portas — etapa 07
 
-Contratos/limites em `packages/domain/src/racks.ts`, rotas em `apps/api/src/racks/routes.ts`, listas/formulários em `apps/web/src/Racks.tsx`, integrados ao datacenter em `Park.tsx`. A cadeia empresa/unidade/datacenter/rack/equipamento/porta é validada na API, com autorização central e consulta por empresa e pai. Rack/equipamento selecionados ficam na URL; trocar um pai limpa seus filhos. Revalidação acompanha o snapshot do parque. Visualizadores consultam listas e estados Livre/Ocupada sem controles de escrita. Frente gráfica e associação permanecem nas etapas 10 e 08.
+Contratos/limites em `packages/domain/src/racks.ts`, rotas em `apps/api/src/racks/routes.ts`, listas/formulários em `apps/web/src/Racks.tsx`, integrados ao datacenter em `Park.tsx`. A cadeia empresa/unidade/datacenter/rack/equipamento/porta é validada na API, com autorização central e consulta por empresa e pai. Rack/equipamento selecionados ficam na URL; trocar um pai limpa seus filhos. Revalidação acompanha o snapshot do parque. Visualizadores consultam listas e estados Livre/Ocupada sem controles de escrita. A frente gráfica foi entregue na etapa 10.
 
 Capacidade, U inicial e altura: inteiros de 1 a 1000; quantidade de portas: inteiro de 1 a 512, somente para patch panels. Nomes/tipo: 1 a 200 caracteres com pelo menos um não branco, preservando grafia. Equipamentos genéricos não têm portas. `kind`, IDs, pais e ordinais não são editáveis. Alterar posição/altura/nome/tipo mantém equipamento, portas e conexões. Contagens derivam dos registros; a sequência usa ordinais e pula nomes sugeridos já ocupados. Ampliação só acrescenta portas. Mudança de quantidade exige `expectedPortIds` na ordem atual; tela desatualizada recebe 409. Redução remove as últimas portas livres, mediante confirmação na interface. Conexão em qualquer porta removida desfaz a operação inteira, incluindo outros campos.
 
@@ -179,6 +195,12 @@ Toda escrita de filho bloqueia primeiro o rack e depois equipamento/portas, seri
 Exclusão permanece explícita e sem cascata: porta exige ausência de conexão; equipamento exige ausência de portas; rack exige ausência de equipamentos. É possível remover individualmente todas as portas livres para excluir um patch panel, ou gerar novamente um lote positivo. Reduzir rack só é permitido se todos os equipamentos couberem. Não há desvinculação automática nem conversão entre genérico e patch panel.
 
 `npm run test:racks`: PostgreSQL exclusivo, incluindo 24/48/512 portas, múltiplas U, rollback de lote, IDs/grafia, dependências, papéis/cadeias cruzadas e concorrência na API e SQL direto. Testes anteriores mantidos; pequeno ajuste no teste da etapa 06 removeu um ramo inacessível após `assert.equal` para o typecheck atual. Referências conferidas: [PostgreSQL — Constraints](https://www.postgresql.org/docs/current/ddl-constraints.html) e [Fastify — Validation and Serialization](https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/). Evidências de navegador e operação no progresso.
+
+### Rack frontal 2D e associação pela porta — etapa 10
+
+`apps/web/src/RackFront.tsx` desenha o rack como U empilhadas de baixo para cima, com dimensões proporcionais, equipamentos genéricos e portas numeradas nos patch panels. `RackPortEditor.tsx` consulta o caminho da porta e permite ao gerente associar um ponto livre, transferir o vínculo dessa porta para outro ponto livre ou desvincular, com confirmação e estado esperado. A consulta `GET /companies/:companyId/points` identifica os pontos livres pelo nome da mesa e planta. Os mesmos vínculos aparecem na lista equivalente de portas e na mesa; não existe armazenamento paralelo.
+
+Equipamentos podem ser movidos por arraste até uma U, por botões de uma U ou pelos campos de U inicial/altura do formulário. Todas as mudanças usam `PATCH` existente; conflitos 409 preservam o cadastro e as conexões. A consulta de rack retorna seus equipamentos com portas e conexões para compor a frente em uma leitura consistente. Nenhuma migração ou dependência de imagem foi necessária. `browser-server.ts --stage10` cria QA isolado sob solicitação explícita.
 
 ## 8. Etapas e entregas
 
@@ -189,6 +211,9 @@ Exclusão permanece explícita e sem cascata: porta exige ausência de conexão;
 - [x] **Organização do parque (etapa 05):** empresas, unidades, andares, plantas e datacenters; contexto na URL, estados vazios, IDs estáveis e exclusão protegida; API/PostgreSQL e formulários em navegador desktop/celular validados em banco exclusivo.
 - [x] **Mesas e pontos (etapa 06):** cadastro/lista/detalhe, lote transacional, nomes editáveis, geometria do domínio, ampliação preservando IDs e redução/exclusão protegidas; API/PostgreSQL e navegador em banco separado.
 - [x] **Racks, equipamentos e portas (etapa 07):** listas/formulários, capacidade e ocupação em U, genéricos e patch panels, portas em lote, IDs estáveis, reduções/exclusões protegidas e conflitos concorrentes; API/PostgreSQL e navegador em banco separado.
+- [x] **API de conexões (etapa 08):** consulta por ponto/porta/ID, caminho atual, associação, transferência/desvinculação com estado esperado e concorrência real; relação única, autorização e isolamento; consumidores existentes atualizados e validados em navegador isolado.
+- [x] **Associação pela mesa (etapa 09):** seleção de destinos pelos nomes, portas livres/ocupadas, confirmação de transferência/desvinculação, revalidação das extremidades e aviso de conflitos; visualizador somente consulta; oito pontos e duas associações distintas validados no navegador.
+- [x] **Rack frontal 2D e associação pela porta (etapa 10):** U numeradas, equipamentos/portas selecionáveis, lista equivalente, associação/transferência/desvinculação pela porta e posição por arraste, botões e campos; persistência e vínculo inverso validados.
 - [ ] **Cadastros e conexões:** hierarquia completa, criação em lote de pontos/portas, vínculo único e edição pelas duas extremidades.
 - [ ] **Rack 2D:** capacidade em U, equipamentos genéricos, patch panels, seleção de portas e proteção contra sobreposição.
 - [ ] **Planta 2D:** desenho, setores, importação de fundos, escala, posicionamento, transformações e salvamento com revisão.

@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { ConnectionPath } from './ConnectionPath';
 import type { FormEvent } from 'react';
 import { rackLimits, type RackDetail, type RackSummary, type EquipmentDetail, type EquipmentKind, type ParkSnapshot } from '@topologia-new/domain';
 import { api, ApiError, json, message } from './api';
 import { navigatePark } from './Park';
+import { RackFront } from './RackFront';
+import { RackPortEditor } from './RackPortEditor';
 
 export function Racks({ path, selected, selectedEquipment, writable, park, refresh, checkSession }: {
   path: string; selected: string; selectedEquipment: string; writable: boolean; park: ParkSnapshot;
@@ -15,6 +18,7 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
   const [name, setName] = useState(''), [kind, setKind] = useState<EquipmentKind>('generic'), [type, setType] = useState('Servidor');
   const [start, setStart] = useState('1'), [height, setHeight] = useState('1'), [quantity, setQuantity] = useState('24');
   const [portId, setPortId] = useState(''), [portName, setPortName] = useState('');
+  const [selectedPortId, setSelectedPortId] = useState('');
   const [confirm, setConfirm] = useState<{ path: string; name: string } | null>(null);
   const active = useRef(true), generation = useRef(0), alert = useRef<HTMLParagraphElement>(null);
   useEffect(() => { active.current = true; return () => { active.current = false; generation.current++; }; }, []);
@@ -38,6 +42,7 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
   useEffect(() => { setRack(null); setEquipment(null); closeForms(); setError(''); setNotice(''); setLoading(true); void load();
     return () => { generation.current++; };
   }, [path, selected, selectedEquipment]);
+  useEffect(() => { setSelectedPortId(''); }, [path, selected]);
   useEffect(() => { void load(); }, [park]);
   useEffect(() => { if (!writable) closeForms(); }, [writable]);
   useEffect(() => { if (error) alert.current?.focus(); }, [error]);
@@ -71,6 +76,11 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
       if (!existing && active.current) navigatePark({ equipamento: row.id });
     }, 'Equipamento salvo.');
   }
+  function moveEquipment(id: string, startU: number) {
+    if (!rack || busy) return;
+    void perform(async () => { await api(`${path}/${rack.id}/equipment/${id}`, json('PATCH', { startU })); }, 'Posição do equipamento salva.');
+  }
+  function editPosition(row: EquipmentDetail) { openEquipment(row); }
   function saveEquipment(event: FormEvent) {
     event.preventDefault();
     if (editEquipment && editEquipment !== 'new' && kind === 'patch_panel' && Number(quantity) < editEquipment.portCount) {
@@ -95,6 +105,10 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
         <button disabled={busy} onClick={() => openEquipment()}>Novo equipamento</button>
       </div>}</div>
       <p>Capacidade: {rack.capacityU} U. U inicial e altura definem a ocupação de cada equipamento.</p>
+      <RackFront rack={rack} writable={writable} selectedPort={selectedPortId} onSelectPort={(panel, id) => {
+        setSelectedPortId(id); setError(''); setNotice(''); closeForms();
+        if (selectedEquipment !== panel.id) navigatePark({ equipamento: panel.id });
+      }} onMove={moveEquipment} onEdit={editPosition} />
       {!rack.equipment.length && <p className="empty-state">Nenhum equipamento neste rack.</p>}
       <ul className="park-list">{rack.equipment.map(e => <li key={e.id}><div className="park-item-name">
         <button className="secondary" disabled={busy} aria-label={`Abrir equipamento ${e.name}`} aria-pressed={selectedEquipment === e.id} onClick={() => navigatePark({ equipamento: e.id })}>{e.name}</button>
@@ -108,11 +122,20 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
       </div>}</div>
       <p>{equipment.equipmentType} · U {equipment.startU} a {equipment.startU + equipment.heightU - 1} · {equipment.portCount} portas</p>
       {equipment.kind === 'patch_panel' && !equipment.ports.length && <p className="empty-state">Este patch panel está sem portas. Edite a quantidade para gerar um novo lote.</p>}
-      <ul className="park-list">{equipment.ports.map(p => <li key={p.id}><div className="park-item-name"><strong>{p.name}</strong><span className="badge">{p.connectionId ? 'Ocupada' : 'Livre'}</span></div>
+      <h5>Lista de portas</h5>
+      <ul className="park-list">{equipment.ports.map(p => <li key={p.id}><div className="park-item-name"><button type="button" className="secondary" aria-pressed={selectedPortId === p.id} onClick={() => setSelectedPortId(p.id)}>{p.name}</button><span className={`badge ${p.connectionId ? 'occupied-port' : 'free-port'}`}>{p.connectionId ? 'Ocupada' : 'Livre'}</span></div>
+        <ConnectionPath connection={p.connection} />
+        <button type="button" className="secondary" disabled={busy} aria-label={`Consultar porta ${p.name}`} onClick={() => setSelectedPortId(p.id)}>Consultar porta</button>
         {writable && <div className="park-actions"><button className="secondary" disabled={busy} aria-label={`Editar porta ${p.name}`} onClick={() => { closeForms(); setPortId(p.id); setPortName(p.name); setError(''); }}>Editar</button>
           <button className="secondary" disabled={busy} aria-label={`Excluir porta ${p.name}`} onClick={() => { closeForms(); setConfirm({ path: `${equipmentBase}/${equipment.id}/ports/${p.id}`, name: p.name }); }}>Excluir</button></div>}
       </li>)}</ul>
     </div>}
+    {rack && selectedPortId && (() => {
+      const selectedPort = rack.equipment.flatMap(item => item.ports).find(item => item.id === selectedPortId);
+      return selectedPort ? <RackPortEditor key={selectedPort.id}
+        port={selectedPort} park={park} refresh={async () => { await load(); await refresh(); }} checkSession={checkSession}
+        close={() => setSelectedPortId('')} saved={async status => { setBusy(false); setSelectedPortId(''); setNotice(status); await load(); }} /> : null;
+    })()}
     {writable && editRack && <form aria-label="Cadastro de rack" onSubmit={saveRack}>
       <h4>{editRack === 'new' ? 'Novo rack' : 'Editar rack'}</h4>
       <label htmlFor="rack-name">Nome do rack</label><input id="rack-name" required maxLength={200} pattern=".*\S.*" autoFocus value={rackName} disabled={busy} onChange={e => setRackName(e.target.value)} />

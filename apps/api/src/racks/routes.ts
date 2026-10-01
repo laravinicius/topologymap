@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { rackLimits, type EquipmentCreateInput, type EquipmentUpdateInput, type RackInput } from '@topologia-new/domain';
 import { HttpError } from '../auth/authorization.js';
 import { uuid } from '../admin/routes.js';
+import { connectionJson } from '../connections/query.js';
 
 type Context = { companyId: string; unitId: string; datacenterId: string; rackId: string; equipmentId: string; portId: string };
 const name = { type: 'string', minLength: 1, maxLength: 200, pattern: '\\S' };
@@ -16,7 +17,8 @@ const rackFields = 'r.id,r.name,r.company_id AS "companyId",r.unit_id AS "unitId
 const equipmentFields = 'e.id,e.name,e.company_id AS "companyId",e.rack_id AS "rackId",e.kind,e.equipment_type AS "equipmentType",e.start_u AS "startU",e.height_u AS "heightU",e.created_at AS "createdAt",e.updated_at AS "updatedAt"';
 const equipmentCount = '(SELECT count(*)::int FROM ports p WHERE p.company_id=e.company_id AND p.equipment_id=e.id) AS "portCount"';
 const portsQuery = `SELECT p.id,p.name,p.company_id AS "companyId",p.equipment_id AS "equipmentId",p.ordinal,
-  p.created_at AS "createdAt",p.updated_at AS "updatedAt",c.id AS "connectionId"
+  p.created_at AS "createdAt",p.updated_at AS "updatedAt",c.id AS "connectionId",
+  ${connectionJson('c.company_id=p.company_id AND c.port_id=p.id')} AS connection
   FROM ports p LEFT JOIN connections c ON c.company_id=p.company_id AND c.port_id=p.id
   WHERE p.company_id=$1 AND p.equipment_id=$2 ORDER BY p.ordinal,p.id`;
 
@@ -53,7 +55,10 @@ export function registerRacks(app: FastifyInstance, pool: pg.Pool) {
     return result.rows[0];
   }
   async function equipmentList(db: pg.Pool | pg.PoolClient, p: Context) {
-    return (await db.query(`SELECT ${equipmentFields},${equipmentCount} FROM equipment e WHERE e.company_id=$1 AND e.rack_id=$2 ORDER BY e.start_u,e.id`, [p.companyId, p.rackId])).rows;
+    const rows = (await db.query(`SELECT ${equipmentFields},${equipmentCount} FROM equipment e WHERE e.company_id=$1 AND e.rack_id=$2 ORDER BY e.start_u,e.id`, [p.companyId, p.rackId])).rows;
+    const details = [];
+    for (const row of rows) details.push({ ...row, ports: (await db.query(portsQuery, [p.companyId, row.id])).rows });
+    return details;
   }
   async function checkPosition(db: pg.PoolClient, p: Context, capacity: number, start: number, height: number) {
     if (start + height - 1 > capacity) throw new HttpError(409, `Equipamento ocupa U ${start} a ${start + height - 1}, mas o rack tem ${capacity} U.`);

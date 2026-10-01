@@ -3,6 +3,8 @@ import type { FormEvent } from 'react';
 import { deskLimits, type DeskDetail, type DeskSummary, type Rectangle, type ParkSnapshot } from '@topologia-new/domain';
 import { api, ApiError, json, message } from './api';
 import { navigatePark } from './Park';
+import { ConnectionPath } from './ConnectionPath';
+import { DeskConnectionEditor, type ConnectionAction } from './DeskConnectionEditor';
 
 const defaultPlacement: Rectangle = { x: 0, y: 0, width: 1.2, height: 0.6, rotation: 0 };
 export function Desks({ path, selected, writable, park, refresh, checkSession }: {
@@ -15,6 +17,7 @@ export function Desks({ path, selected, writable, park, refresh, checkSession }:
   const [position, setPosition] = useState(defaultPlacement);
   const [pointId, setPointId] = useState(''), [pointName, setPointName] = useState('');
   const [deleting, setDeleting] = useState<{ path: string; name: string } | null>(null);
+  const [connectionAction, setConnectionAction] = useState<ConnectionAction | null>(null);
   const generation = useRef(0), active = useRef(true), alert = useRef<HTMLParagraphElement>(null);
   useEffect(() => { active.current = true; return () => { active.current = false; generation.current++; }; }, []);
   async function load() {
@@ -34,15 +37,16 @@ export function Desks({ path, selected, writable, park, refresh, checkSession }:
       if (e instanceof ApiError && e.status === 401) void checkSession();
     } finally { if (active.current && current === generation.current) setLoading(false); }
   }
-  useEffect(() => { setDetail(null); setEditing(null); setPointId(''); setDeleting(null); setError(''); setLoading(true); void load();
+  useEffect(() => { setDetail(null); setEditing(null); setPointId(''); setDeleting(null); setConnectionAction(null); setBusy(false); setError(''); setNotice(''); setLoading(true); void load();
     return () => { generation.current++; };
     // O snapshot do parque é revalidado por foco, intervalo e atualização manual.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, selected]);
   useEffect(() => { void load(); }, [park]);
-  useEffect(() => { if (!writable) { setEditing(null); setPointId(''); setDeleting(null); } }, [writable]);
+  useEffect(() => { if (!writable) { setEditing(null); setPointId(''); setDeleting(null); setConnectionAction(null); setBusy(false); } }, [writable]);
   useEffect(() => { if (error) alert.current?.focus(); }, [error]);
   function edit(row?: DeskDetail) {
+    setConnectionAction(null);
     setEditing(row ?? 'new'); setName(row?.name ?? ''); setQuantity(String(row?.pointCount ?? 8));
     setPosition(row?.placement ?? defaultPlacement); setPointId(''); setDeleting(null); setError(''); setNotice('');
   }
@@ -84,14 +88,22 @@ export function Desks({ path, selected, writable, park, refresh, checkSession }:
     {detail && <div className="park-detail">
       <div className="panel-header"><h4>Mesa: {detail.name}</h4>{writable && <div className="park-actions">
         <button className="secondary" disabled={busy} onClick={() => edit(detail)}>Editar mesa</button>
-        <button className="secondary" disabled={busy} onClick={() => { setDeleting({ path: `${path}/${detail.id}`, name: detail.name }); setEditing(null); }}>Excluir mesa</button>
+        <button className="secondary" disabled={busy} onClick={() => { setConnectionAction(null); setDeleting({ path: `${path}/${detail.id}`, name: detail.name }); setEditing(null); }}>Excluir mesa</button>
       </div>}</div>
       <p>{detail.pointCount} pontos · Centro ({detail.placement.x}, {detail.placement.y}) m · {detail.placement.width} × {detail.placement.height} m · Rotação {detail.placement.rotation}°</p>
       {!detail.points.length && <p className="empty-state">Esta mesa ainda não possui pontos.</p>}
       <ul className="park-list">{detail.points.map(p => <li key={p.id}><div className="park-item-name"><strong>{p.name}</strong><span className="badge">{p.connectionId ? 'Associado' : 'Não associado'}</span></div>
-        {writable && <div className="park-actions"><button className="secondary" disabled={busy} aria-label={`Editar ponto ${p.name}`} onClick={() => { setPointId(p.id); setPointName(p.name); setEditing(null); setDeleting(null); setError(''); }}>Editar</button>
-          <button className="secondary" disabled={busy} aria-label={`Excluir ponto ${p.name}`} onClick={() => { setDeleting({ path: `${path}/${detail.id}/points/${p.id}`, name: p.name }); setEditing(null); setPointId(''); }}>Excluir</button></div>}
+        <ConnectionPath connection={p.connection} />
+        {writable && <div className="park-actions">{(p.connection ? ['transfer', 'unlink'] as const : ['associate'] as const).map(mode => {
+          const label = mode === 'associate' ? 'Associar' : mode === 'transfer' ? 'Transferir' : 'Desvincular';
+          return <button key={mode} className="secondary" disabled={busy} aria-label={`${label} ${p.name}`} onClick={() => { setConnectionAction({ point: p, mode }); setEditing(null); setPointId(''); setDeleting(null); setError(''); setNotice(''); }}>{label}</button>;
+        })}<button className="secondary" disabled={busy} aria-label={`Editar ponto ${p.name}`} onClick={() => { setConnectionAction(null); setPointId(p.id); setPointName(p.name); setEditing(null); setDeleting(null); setError(''); }}>Editar</button>
+          <button className="secondary" disabled={busy} aria-label={`Excluir ponto ${p.name}`} onClick={() => { setConnectionAction(null); setDeleting({ path: `${path}/${detail.id}/points/${p.id}`, name: p.name }); setEditing(null); setPointId(''); }}>Excluir</button></div>}
       </li>)}</ul>
+      {writable && connectionAction && <DeskConnectionEditor key={`${connectionAction.point.id}:${connectionAction.mode}:${connectionAction.point.connection?.id}:${connectionAction.point.connection?.revision}`}
+        action={connectionAction} current={detail.points.find(p => p.id === connectionAction.point.id)} park={park} refresh={refresh} checkSession={checkSession}
+        close={() => setConnectionAction(null)} onBusy={value => { if (active.current) setBusy(value); }}
+        saved={async notice => { setBusy(false); setNotice(notice); setConnectionAction(null); await load(); }} />}
     </div>}
     {writable && editing && <form onSubmit={save} aria-label="Cadastro de mesa">
       <h4>{editing === 'new' ? 'Nova mesa' : 'Editar mesa'}</h4>

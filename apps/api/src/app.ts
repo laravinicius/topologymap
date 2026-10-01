@@ -11,6 +11,8 @@ import { registerAdministration } from './admin/routes.js';
 import { registerPark } from './park/routes.js';
 import { registerDesks } from './desks/routes.js';
 import { registerRacks } from './racks/routes.js';
+import { registerConnections } from './connections/routes.js';
+import { registerLayout } from './layout/routes.js';
 
 declare module 'fastify' {
   interface FastifyRequest { session: AuthSession | null }
@@ -70,6 +72,8 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
               : 'Confira os IDs e campos informados. Identificadores, filiação e ordem dos pontos não são editáveis.';
       return reply.code(400).send({ message });
     }
+    if (error.validation && _request.routeOptions.url?.includes('/connections'))
+      return reply.code(400).send({ message: 'Informe IDs UUID válidos. Transferir ou desvincular exige expected com pointId, portId e revision inteira positiva da conexão lida. Campos extras não são aceitos.' });
     if (error.validation || error.statusCode === 400) return reply.code(400).send({ message: 'Confira os campos informados e seus limites.' });
     const code = (error as FastifyError & { code?: string }).code;
     if (code === '23505') return reply.code(409).send({ message: 'Nome ou login já cadastrado.' });
@@ -167,6 +171,8 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
   registerPark(app, pool);
   registerDesks(app, pool);
   registerRacks(app, pool);
+  registerConnections(app, pool);
+  registerLayout(app, pool);
   app.get('/api/auth/session', { config: { access: 'session' } }, async request => request.session!);
   app.post('/api/auth/logout', async (request, reply) => {
     const token = request.cookies[cookieName];

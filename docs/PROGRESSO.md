@@ -2,9 +2,9 @@
 
 Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Git. Capturas, logs e relatórios permanecem disponíveis na máquina onde foram gerados; os resultados das verificações continuam registrados neste documento. Os caminhos abaixo são referências locais e não acompanham novas cópias do repositório.
 
-Atualizado em 01/10/2026 (America/Sao_Paulo), após a conclusão da etapa 07.
+Atualizado em 01/10/2026 (America/Sao_Paulo), após a conclusão da etapa 10.
 
-**Estado atual:** etapas 01 a 07 concluídas. Ambiente local saudável, autenticação, administração global, autorização por empresa, hierarquia, mesas/pontos e cadastros de racks/equipamentos/portas disponíveis. Dados existentes no banco de trabalho preservados; QA sintético somente em bancos separados. Próxima etapa: 08, pendente e não iniciada. As seções 01 a 06 preservam o histórico; o resultado atual está na seção 07.
+**Estado atual:** etapas 01 a 10 concluídas. Ambiente local saudável, autenticação, administração global, autorização por empresa, hierarquia, mesas/pontos, racks/equipamentos/portas, API transacional e associação pela mesa e pela porta disponíveis. Consulta nas duas extremidades, seleção de destinos pelos nomes, transferência/desvinculação explícitas e tratamento de conflitos. Dados de trabalho preservados; QA sintético somente em bancos separados. Próxima etapa: 11, pendente. As seções anteriores preservam o histórico; os resultados atuais estão nas seções 09 e 10.
 
 ## Etapa 01 — Workspace e Docker local
 
@@ -468,3 +468,141 @@ Servidor QA encerrado por SIGTERM; banco sintético/credencial removidos, contai
 API `topologia_new`, web `topologia_new_web` e PostgreSQL `topologia_new_db` ficaram saudáveis. Somente web exposta em `127.0.0.1:5173`; volumes existentes mantidos. Health final em 01/10/2026 às 09:12:34 (America/Sao_Paulo). Navegador sem sessão válida do banco de trabalho mostra login. Para validar: entre em [http://localhost:5173](http://localhost:5173), selecione empresa → unidade → datacenter, use **Novo rack** e **Novo equipamento**, escolha patch panel e informe 24 ou 48 portas. Abra o equipamento para editar os nomes. Recarregue para conferir persistência. `npm run dev:stop` para parar preservando volumes; `npm run dev:all` para subir novamente.
 
 Sem dispositivo físico, produção, commit, push ou publicação. **Pendências essenciais da etapa 07: nenhuma. Próxima etapa: 08 — API de conexões e proteção contra concorrência**, somente mediante nova solicitação.
+
+## Etapa 08 — Conexões e concorrência
+
+**Situação: Concluída em 01/10/2026.** API transacional disponível no ambiente local. Contrato de rotas, corpos, respostas e tratamento dos conflitos em [CONEXOES.md](CONEXOES.md). Etapas 09/10 de formulários de associação e frente gráfica não foram iniciadas.
+
+### Resultado e arquivos principais
+
+- `packages/domain/src/connections.ts`: caminho, DTO da conexão e estado esperado; contratos de pontos/portas acrescentam connection mantendo connectionId.
+- `apps/api/src/connections/routes.ts`: consulta por ponto, porta ou ID; associação por POST; transferência explícita por POST /transfer e desvinculação por DELETE. Registro e mensagem de validação em `app.ts`; comandos test:connections nos manifests.
+- `apps/api/src/connections/query.ts`: caminho derivado dos cadastros atuais em um statement, reutilizado nas duas extremidades e nos detalhes de mesa/equipamento. Integração em `desks/routes.ts` e `racks/routes.ts`.
+- `apps/web/src/ConnectionPath.tsx`, `Desks.tsx` e `Racks.tsx`: caminho textual e localização de origem nas listas existentes. Revalidação por foco, 30 segundos e Atualizar acessos, sem nova infraestrutura.
+- `apps/api/test/connections.test.ts`: testes com Fastify real via inject e PostgreSQL isolado; `browser-server.ts --stage08` disponibiliza QA opcional separado. README, arquitetura, contrato e plano atualizados.
+
+A única relação persistida continua em connections. Associação usa INSERT simples: ponto/porta ocupados recebem 409, inclusive ao repetir o par. Transferência preserva ID/createdAt, incrementa revisão e libera a extremidade substituída; destino ocupado por outra conexão gera rollback, sem remover/substituir o vínculo alheio. DELETE e transferência exigem revisão e as duas extremidades esperadas, condicionadas junto ao ID e à empresa no statement de alteração. Estado antigo, inclusive após remover e recriar o par, não afeta o vínculo novo. Cada escrita usa transação completa.
+
+Empresa/papel são validados na política central e as referências são filtradas pela empresa; visualizador não escreve e administrador também não pode cruzar empresas. Unicidades/FKs/revisão da migração 002 continuam protegendo o banco. Nenhuma migração ou alteração no banco de trabalho foi necessária. Andares/unidades diferentes são permitidos dentro da empresa. Nomes atuais, grafia e IDs vêm dos cadastros; não há caminho duplicado persistido.
+
+### Testes de API/banco e compilação
+
+| Verificação | Comando/procedimento | Resultado |
+|---|---|---|
+| Nova suíte API/PostgreSQL | `npm run test:connections` | **13/13**, zero falhas/skips. Banco exclusivo topologia_new_test08_<sufixo>, credencial sintética aleatória e remoção ao terminar. |
+| Concorrência por ponto | Duas chamadas POST com mesmo ponto e portas diferentes, ambas aguardando locks reais confirmados em pg_stat_activity | **201/409**; exatamente uma conexão, igual nas duas consultas. |
+| Concorrência por porta | Duas chamadas POST com pontos diferentes e mesma porta, com a mesma barreira de banco | **201/409**; exatamente uma conexão e nenhuma substituição. |
+| Transferência concorrente | Duas transferências do mesmo ID/revisão/estado | **200/409**; apenas uma revisão incrementada e extremidades antigas livres. |
+| Destino disputado | Duas conexões transferidas simultaneamente para mesmo ponto ou porta | **200/409** em ambos os cenários; perdedora e seu vínculo anterior íntegros. |
+| DELETE contra transferência | Ambas as operações em voo no mesmo estado, bloqueadas por terceiro cliente antes da liberação | **200/409**; condição revalidada depois do lock; remoção antiga não apaga transferência/nova associação. |
+| Estado esperado | Revisão/extremidades antigas, campos omitidos/tipos incorretos; remoção/recriação do mesmo par | Estado desatualizado 409; entradas inválidas 400. Novo ID preservado diante de alterações usando ID antigo. |
+| Caminho e integridade | GET ponto/porta/ID e detalhes; andares distintos; renomear mesa/ponto/rack/PP/porta; rack sem localização | Mesmo DTO nos dois sentidos; caminhos atuais, IDs/revisão preservados após renomear, localização opcional null. |
+| Rollback e isolamento | Associação duplicada, destino ocupado, destinos de empresa B sob A, incluindo admin; INSERT direto com FKs/unicidades | Conflitos 409; referência cruzada 404; banco rejeita FK 23503 e unicidade 23505. Vínculos existentes preservados. |
+| Autorização | Mesmo usuário manager em A/viewer em B, origem inválida, revogação e desativação com sessão existente | Viewer/origem inválida 403; empresa sem acesso/revogação 404; sem sessão/usuário inativo 401. Admin autorizado opera. |
+| Regressão API/PostgreSQL | `npm run test:desks`, `npm run test:racks`, `npm run test:db` | **10/10, 13/13, 35/35**. Com a suíte nova: **71 testes aprovados**. Incluem corridas de remoção de ponto/porta contra conexão e proteção de reduções. |
+| Typecheck no host | `npm run typecheck` | API, testes, web e domínio aprovados. |
+| Build no host | `npm run build` | Aprovado; web 266,49 kB / 79,68 kB gzip. |
+| Verificação final Linux | `docker compose exec -T api npm run typecheck` e `npm run build` | Ambos aprovados no workspace inteiro. Logs em typecheck-linux.txt/build-linux.txt. |
+| Operação | `npm run db:status`, health pelo proxy e `git diff --check` | Três migrações aplicadas, HTTP 200/status ok/database up e sem erros de whitespace. |
+
+Esses testes usam sessões HTTP e SQL de banco reais; inject exercita hooks, schemas e handlers Fastify sem abrir outra porta pública. A barreira de concorrência usa terceiro cliente com FOR UPDATE e observa duas requisições aguardando locks antes de soltá-las. Não depende de apenas disparar duas promises sem provar sobreposição no banco.
+
+### Navegador local
+
+Playwright CLI/Chromium com banco exclusivo `topologia_new_test08_browser_b546af4afe23`, API temporária interna em 3002 e web temporária em `127.0.0.1:5174`. Administrador somente por --stage08 explícito; cadastros e conexão sintéticos criados pela nova API nesse QA.
+
+- Consulta de mesa mostrou Ponto 1 Associado e o caminho Mesa QA 08 → Ponto 1 → Datacenter QA 08 → Rack QA 08 → Patch panel QA 08 → Porta 1. Pontos 2/3 continuaram Não associado.
+- Consulta do patch panel mostrou a mesma origem na porta ocupada. Após transferência explícita pela API para Porta 2 e Atualizar acessos, Porta 1 ficou Livre e Porta 2 exibiu o caminho. Reabrir a mesa mostrou Porta 2, comprovando o consumidor inverso.
+- Desvinculação explícita pela API seguida de Atualizar acessos removeu o caminho e devolveu Ponto 1 a Não associado.
+- Capturas desktop e 390 × 844 inspecionadas visualmente; caminho legível com quebra de texto e sem overflow horizontal (scrollWidth 375 no Chromium com viewport 390). Não houve teste em aparelho físico.
+- Console das consultas autenticadas sem erros/warnings. 401 anteriores ao login e 404 do favicon preexistente foram observados na abertura inicial, sem exceção JavaScript da aplicação.
+
+Evidências locais ignoradas em `docs/evidencias/etapa08/`: `etapa08-mesa-desktop.png`, `etapa08-mesa-celular.png` (após transferência), `etapa08-porta-celular.png`, `etapa08-transferencia-porta.png`, `etapa08-desvinculacao.png`, logs de typecheck/build Linux e `banco-trabalho-final.txt`. Scripts e capturas originais em output/playwright, ignorado. Resultados numéricos de API/banco registrados na tabela acima.
+
+### Ambiente e continuidade
+
+Servidor/banco/container web de QA encerrados e removidos; arquivo de credencial e estado de sessão temporários removidos. Consulta de pg_database confirmou somente topologia_new entre bancos com esse prefixo, sem bancos sintéticos restantes. Nenhum cadastro de QA ou seed foi escrito no banco de trabalho. Snapshot final do trabalho: **2 usuários, 6 sessões, 1 empresa/concessão/unidade/andar/planta/mesa/datacenter/rack/equipamento, 8 pontos, 24 portas e 0 conexões**. Os cadastros de rack/PP existentes diferem do histórico da etapa 07 e foram preservados. O snapshot final é registrado sem alegar comparação de checksum com um snapshot inicial desta etapa que não foi coletado.
+
+API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` continuam saudáveis. Somente web exposta em `127.0.0.1:5173`; volumes mantidos. Health final HTTP 200 em 01/10/2026 às 09:33:57 (America/Sao_Paulo).
+
+URL local: [http://localhost:5173](http://localhost:5173). Entre com sua conta e use os IDs retornados pelos detalhes existentes conforme [CONEXOES.md](CONEXOES.md) para testar as chamadas de associação/transferência/desvinculação. Abra mesa/patch panel e use Atualizar acessos para conferir o caminho. Para repetir os cenários em banco isolado: `npm run test:connections`. `npm run dev:stop` para parar preservando volumes; `npm run dev:all` para subir.
+
+Typecheck/build, API/PostgreSQL e navegador local são provas separadas. Sem celular físico, produção, commit, push ou publicação. **Pendências essenciais da etapa 08: nenhuma. Próxima etapa: 09 — Associação pela mesa**, somente mediante nova solicitação.
+
+## Etapa 09 — Associação pela mesa
+
+**Situação: Concluída em 01/10/2026.** Primeiro fluxo de cabeamento completo pela mesa, usando a API transacional existente. **Etapa 10 permanece pendente e não foi iniciada.** Alterações anteriores da etapa 08 e demais trabalho local preservados.
+
+### Entrega e arquivos
+
+- `apps/web/src/Desks.tsx`: ações Associar/Transferir/Desvincular por ponto, consulta dos oito pontos e caminho atual; coordenação de gravação e atualização do detalhe. Edição dos cadastros existente mantida.
+- `apps/web/src/DeskConnectionEditor.tsx`: seleção datacenter → rack → patch panel → porta pelos nomes reais; datacenters de todas as unidades autorizadas da empresa identificados pela unidade, sem trocar os filtros da mesa. Equipamentos genéricos não entram no seletor. Portas mostram Livre/Ocupada, mesa/ponto nas ocupadas, contagens e resumo completo do destino; ocupadas ficam indisponíveis.
+- Transferência e desvinculação com revisão e confirmação explícitas, cancelamento sem escrita e estado esperado congelado na leitura que abriu a ação. Sem troca implícita, remoção de vínculo alheio ou repetição automática com revisão nova.
+- Estados de carregamento/gravação/sucesso/erro, rótulos, foco visível, erro anunciado, controles desabilitados e proteção contra submissão repetida. Trocar o pai limpa filhos; gerações descartam respostas antigas. Ajuste localizado em `style.css` mantém apresentação existente.
+- Após escrita ou conflito, consultas explícitas ao ponto, porta anterior, destino tentado e eventual porta atual definida pela outra sessão, seguidas de atualização do parque/detalhe e ocupação. Mudanças detectadas por foco/30 segundos/Atualizar acessos bloqueiam a ação antiga e mostram o estado atual. HTTP 409 exige fechar e abrir uma nova ação; falha de rede também exige revisão para evitar repetir operação cuja resposta pode ter se perdido.
+- Visualizadores não recebem controles/editor. A API da etapa 08 continua exigindo papel atual em cada escrita; rebaixamento de papel fecha o editor ao revalidar. Nenhuma nova migração, rota de escrita, biblioteca ou persistência paralela. Única relação permanece em `connections`.
+- `apps/api/test/browser-server.ts`: opção explícita `--stage09` e origem de QA configurável por `QA_ORIGIN`. README, plano, arquitetura e `CONEXOES.md` atualizados. Skills de validação por etapa, Playwright e UI/UX Pro Max aplicadas ao escopo existente.
+
+### Verificações
+
+| Categoria | Verificação | Resultado |
+|---|---|---|
+| API/PostgreSQL | `npm run test:connections` | **13/13**; associação/inversa, concorrência com locks reais, revisão, rollback, isolamento, viewer, revogação e desativação. |
+| Regressão API/PostgreSQL | `npm run test:desks`, `npm run test:racks` | **10/10 e 13/13**; preservação de pontos/portas, dependências, concorrência e papéis. |
+| Domínio | `npm run test:domain` | **4/4**. Total das quatro suítes: **40 testes aprovados**, zero falhas/skips. |
+| Compilação | `npm run typecheck`, `npm run build`, no host e via `docker compose exec -T api` | Aprovados; API/testes/web/domínio. Build final Linux: JS **275,30 kB / 81,97 kB gzip**. |
+| Navegador | Chromium/Playwright CLI, gerente, mesa com oito pontos | Ponto 1 associado pela UI à Porta 1 do Patch panel/Rack/Datacenter QA 1 na Matriz; Ponto 2 à Porta 2 do segundo destino na Filial. Seis pontos permaneceram livres nessa prova. DTOs idênticos pelas portas; recarga preservou vínculos e URL de empresa/unidade/andar/planta/mesa. |
+| Navegador | Ocupação e transferência | Porta ocupada desabilitada com mesa/ponto; genérico excluído. Revisar/cancelar preservou vínculo; confirmar transferiu Ponto 1 para Porta 3, preservou ID e incrementou revisão. Porta anterior livre; detalhe do rack apresentou Ponto 1/Porta 3. |
+| Navegador + duas sessões HTTP | Outra sessão ocupou a porta selecionada antes da confirmação | **409**; ponto perdedor livre, vínculo vencedor intacto, seletor atualizado para Ocupada, repetição bloqueada e erro visível. |
+| Navegador + duas sessões HTTP | Outra sessão transferiu após abrir confirmação de desvinculação | **409** no DELETE antigo; transferência preservada, ponto atualizado e nova porta consultada explicitamente. Estado atual mostrado sem substituir a revisão da ação antiga. |
+| Navegador | Atualização de fundo e desvinculação | Após outra transferência, Atualizar acessos avisou mudança e bloqueou escrita antiga. Nova ação usou a leitura atual; cancelar preservou vínculo e confirmar liberou ponto/porta. Outro ponto continuou associado. |
+| Navegador/API | Viewer e rebaixamento de gerente com editor aberto | Nenhum controle de escrita no viewer; POST associação, POST transferência e DELETE receberam **403/403/403**. Papel rebaixado antes de confirmar recebeu **403**, sem gravação, e a interface fechou o editor/removeu controles; concessão sintética restaurada após a prova. |
+| Navegador, respostas retardadas para a prova | Carregamento e gravação | Mensagens visíveis; submissão bloqueada durante consulta/gravação e contra duplo clique. Pedido real liberado depois da barreira concluiu a associação. |
+| Navegador, falha de rede simulada | POST abortado pelo Playwright | Erro visível, reconsulta do estado e necessidade de nova revisão; sem repetição automática. |
+| Navegador em viewport móvel | Consulta do viewer e formulário, **390 × 844** | Textos/controles legíveis, capturas inspecionadas; `scrollWidth=375`, menor que viewport 390. Resumo do destino permite ler nomes completos fora do select. Sem teste em dispositivo físico. |
+| Operação e arquivos | `npm run dev:all`, `npm run db:status`, health e `git diff --check` | Compose aguardou os três serviços saudáveis; três migrações continuam aplicadas; health HTTP 200/status ok/database up. Sem erro de whitespace; somente avisos preexistentes de conversão LF/CRLF. |
+
+QA utilizou exclusivamente `topologia_new_test09_browser_5867c463162d`, API temporária interna em `api:3002` e web em `127.0.0.1:5175`; a porta 5174 estava ocupada por outro processo e foi preservada. Duas sessões independentes de gerenciamento e papéis sintéticos criados somente nesse banco. Console sem warnings/exceções JavaScript da aplicação; 409/403 esperados e falha de rede induzida apareceram como erros HTTP, além dos 401 de abertura sem login/favicon preexistente.
+
+Capturas e logs locais ignorados em `docs/evidencias/etapa09/`: duas associações, ocupação, porta após transferência, conflitos, desvinculação, viewer/formulário móvel e erro de rede; logs de transferência/conflitos/desvinculação-viewer e snapshot final. Scripts de QA e capturas originais ficam em `output/playwright/`, ignorado. Uma repetição do cenário de gravação retardada corrigiu o encerramento dos interceptadores do próprio Playwright; a execução corrigida passou, sem alteração necessária na aplicação por esse erro de harness.
+
+### Preservação e continuidade
+
+Comparação inicial/final de **14 tabelas do banco de trabalho**, com contagens e MD5 do conteúdo ordenado por ID: **todas idênticas**, incluindo usuários/sessões/permissões e cadastros. Mantidos 2 usuários, 6 sessões, 1 empresa/concessão/unidade/andar/planta/mesa/datacenter/rack/equipamento, 8 pontos, 24 portas e 0 conexões. Não houve seed nem conexão de QA no banco do usuário.
+
+Servidor/API/web temporários encerrados e container de QA removido; banco sintético eliminado pelo servidor, arquivo de credencial e quatro estados de sessão temporários removidos. Consulta final de `pg_database` confirmou apenas `topologia_new` entre os bancos com esse prefixo. Volumes preservados. API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` seguem **healthy**, com somente a web exposta em **127.0.0.1:5173**. Health final HTTP 200 em **01/10/2026 às 11:23:53 (America/Sao_Paulo)**.
+
+URL de trabalho: [http://localhost:5173](http://localhost:5173). Entre com sua conta, selecione empresa → unidade → andar → planta → mesa e use Associar/Transferir/Desvincular em cada ponto. Abra o patch panel correspondente para consultar o mesmo vínculo. **Atualizar acessos** revalida consultas e permissões. `npm run dev:stop` para parar preservando volumes; `npm run dev:all` para subir novamente.
+
+Typecheck/build, API/PostgreSQL e navegador local são provas separadas. Sem dispositivo físico, produção, commit, push ou publicação. **Pendências essenciais da etapa 09: nenhuma. Próxima etapa à época: 10 — Visualização frontal do rack e associação pela porta.**
+
+## Etapa 10 — Rack frontal 2D e associação pela porta
+
+**Situação: Concluída em 01/10/2026.** Vista frontal e lista das portas integradas ao datacenter. Seleção de porta permite consulta e, para gerente, associação, transferência e desvinculação do ponto. Posição do equipamento pode ser alterada por arraste, botões de uma U e campos do cadastro. **Etapa 11 — Persistência do layout e revisões permanece pendente.**
+
+### Entrega
+
+- `apps/web/src/RackFront.tsx`: frente do rack com U em ordem crescente de baixo para cima, altura proporcional e representação própria de equipamentos genéricos; patch panels exibem portas numeradas com estados Livre/Ocupada e o ponto ligado. Portas selecionáveis por mouse/teclado.
+- `apps/web/src/RackPortEditor.tsx`: painel da porta mostra o caminho completo. Gerente pode associar ponto livre, transferir a conexão para outro ponto livre ou desvincular, cada ação com confirmação apropriada. Seleção mostra mesa e planta; nenhuma operação substitui vínculo alheio.
+- A lista textual de portas mostra o mesmo estado e caminho da frente. Visualizador consulta sem controles de escrita; a API aplica o papel atual em cada escrita.
+- Arrastar equipamento a uma faixa de U, mover por botões ↑/↓ e editar U inicial/altura usam o PATCH já existente. Ocupação e capacidade continuam verificadas na API e no PostgreSQL; erro 409 informa o conflito sem alterar posição nem conexão.
+- `GET /companies/:companyId/points` retorna pontos com mesa, planta e conexão para o seletor. O detalhe do rack agora retorna equipamentos com portas/conexões, reduzindo chamadas da frente; associação, transferência e desvinculação usam as mesmas rotas e a mesma tabela `connections`.
+- `packages/domain/src/racks.ts`, rota de rack/conexões, documentação do plano/arquitetura/contrato e opção isolada `browser-server.ts --stage10` atualizados. Sem migração, serviço, pacote ou imagem comercial.
+
+### Verificações
+
+| Categoria | Verificação | Resultado |
+|---|---|---|
+| Typecheck | `npm run typecheck` | API, testes, web e domínio aprovados. |
+| Build | `npm run build` | Aprovado; bundle web 284,57 kB (84,04 kB gzip). |
+| API/PostgreSQL | `npm run test:connections` | **13/13**; inclui igualdade da consulta da conexão no rack, porta, ponto e mesa, listagem de pontos, concorrência, revalidação de revisão, isolamento e papéis. Registro em `docs/evidencias/etapa10/api-connections.txt`. |
+| API/PostgreSQL | `npm run test:racks` | **13/13**; inclui ocupação sobreposta, PATCH de posição, capacidade, restrições diretas no PostgreSQL, dependências e autorização. Registro em `docs/evidencias/etapa10/api-racks.txt`. |
+| Navegador — gerente | Chromium/Playwright CLI em `http://localhost:5176`, API temporária em `api:3002`, origem QA `http://localhost:5176`, banco `topologia_new_test10_browser_dfb2631bdcda` | Em banco exclusivamente sintético: associação iniciada pela Porta 1, consulta pela frente/lista, transferência para Ponto 2 e retorno a Ponto 1, desvinculação confirmada e nova associação. Após cada gravação, a mesa e o rack foram atualizados. |
+| Navegador — posição | Botão ↑: U inicial 2→3; arraste do servidor até U 6: início 5; formulário: início 6 | Alterações atualizadas no rack e na API. Tentativa seguinte de avançar para U 7, sobreposta ao patch panel em U 8, retornou **409** e preservou U inicial 6. Após recarregar, API confirmou `startU=6`, `heightU=2`. |
+| Navegador — relação inversa/persistência | GET do rack e GET do detalhe da mesa após recarregar | Rack/porta e mesa retornaram o mesmo ID de conexão, Ponto 1 → Mesa QA → Porta 1, revisão 1. Capturas mostram o caminho nos dois contextos. |
+| Navegador — acessibilidade/responsivo | Seleção da porta por botão, lista textual e viewport **390 × 844** | Lista mostra nomes completos e controles usuais; em 390 px, largura do documento permaneceu 390 px, com rolagem horizontal restrita à moldura do rack (conteúdo 604 px, janela 264 px). Sem teste em aparelho físico. |
+| Operação/preservação | `npm run dev:all`, `npm run db:status`, `/api/health`, consulta aos bancos `topologia_new_test%`, `git diff --check` | Três serviços saudáveis; 001/002/003 aplicadas; health HTTP 200 e database up; nenhum banco QA restante; whitespace sem erros. Volumes existentes preservados. |
+
+Capturas Chromium/Playwright em `docs/evidencias/etapa10/` (diretório local ignorado): `vista-frontal-rack.png`, `porta-conexao.png`, `mesa-conexao.png` e `rack-lista-portas.png`. Os registros das suítes API/PostgreSQL estão no mesmo diretório. O banco sintético e a sessão de QA foram encerrados/removidos; web/API temporários e proxy de QA foram encerrados. Nenhum cadastro de QA foi gravado no banco de trabalho; não foi necessária comparação ou restauração do volume. API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` permanecem saudáveis. Web disponível em [http://localhost:5173](http://localhost:5173); somente web exposta em loopback. `npm run dev:stop` para parar preservando dados; `npm run dev:all` para subir.
+
+Sem validação em dispositivo físico ou produção, commit, push ou publicação. **Pendências essenciais da etapa 10: nenhuma. Próxima etapa: 11 — Persistência do layout e revisões**, somente mediante solicitação própria.
