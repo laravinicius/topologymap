@@ -2,9 +2,9 @@
 
 Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Git. Capturas, logs e relatórios permanecem disponíveis na máquina onde foram gerados; os resultados das verificações continuam registrados neste documento. Os caminhos abaixo são referências locais e não acompanham novas cópias do repositório.
 
-Atualizado em 30/09/2026 (America/Sao_Paulo), após a conclusão da etapa 05.
+Atualizado em 01/10/2026 (America/Sao_Paulo), após a conclusão da etapa 07.
 
-**Estado atual:** etapas 01 a 05 concluídas. Ambiente local saudável, autenticação, administração global, autorização por empresa e cadastros de unidades/andares/plantas/datacenters disponíveis. Usuários, sessões, empresa e permissões existentes no banco de trabalho preservados; cadastros do parque continuam vazios ali. Dados sintéticos usados somente em bancos separados. Próxima etapa: 06, pendente e não iniciada. As seções 01 a 04 preservam o histórico; o resultado atual está na seção 05.
+**Estado atual:** etapas 01 a 07 concluídas. Ambiente local saudável, autenticação, administração global, autorização por empresa, hierarquia, mesas/pontos e cadastros de racks/equipamentos/portas disponíveis. Dados existentes no banco de trabalho preservados; QA sintético somente em bancos separados. Próxima etapa: 08, pendente e não iniciada. As seções 01 a 06 preservam o histórico; o resultado atual está na seção 07.
 
 ## Etapa 01 — Workspace e Docker local
 
@@ -367,3 +367,104 @@ Permanecem API `topologia_new`, web `topologia_new_web` e banco `topologia_new_d
 Para validar com seus dados, entre com o administrador existente, crie/conceda acesso à empresa em **Administração**, selecione-a em **Empresas autorizadas** e cadastre unidades → andares → plantas; datacenters ficam na unidade. Use uma conta gerente autorizada ou o administrador. Recarregue para conferir o contexto. `npm run test:park` repete as verificações da API em dados isolados. Retomar: `npm run dev:all`; parar preservando volumes: `npm run dev:stop`.
 
 **Pendências essenciais da etapa 05: nenhuma. Próxima etapa: 06 — Mesas e pontos, pendente e não iniciada.**
+
+## Etapa 06 — Mesas e pontos
+
+**Situação: Concluída em 01/10/2026.** Cadastro, lista e detalhe de mesas/pontos disponíveis em [http://localhost:5173](http://localhost:5173), dentro da planta selecionada. Etapa 07 pendente e não iniciada.
+
+### Resultado e arquivos principais
+
+- `packages/domain/src/desks.ts`: entradas e DTOs compartilhados, limites, contagem real e estado de conexão; geometria reutiliza `Rectangle`, em metros, com centro como âncora.
+- `apps/api/src/desks/routes.ts`: rotas sob empresa/unidade/andar/planta/mesa; criação transacional da mesa e N pontos; consulta consistente do detalhe; edição de mesa/ponto, ampliação e redução com IDs esperados; exclusões explícitas protegidas. Autorização central da etapa 04 e cadeia completa da URL em todas as operações. Não exige racks nem implementa associação nesta etapa.
+- `apps/api/src/app.ts`: registro do módulo e mensagens específicas de validação para mesas/pontos. Quantidade inteira de 0 a 512; nome de 1 a 200 caracteres, não branco; coordenadas de -1000000 a 1000000 m; dimensões positivas até 10000 m; rotação [0,360). IDs, filiação e ordinal não são campos editáveis.
+- `apps/web/src/Desks.tsx`, `Park.tsx`, `style.css`: formulário, lista com quantidade, detalhe com Associado/Não associado, edição de nome/posição/dimensão/rotação, confirmações e feedback anunciado com foco no erro. Mesa na URL; recarga mantém contexto e troca de pai limpa a mesa. Revalidação acompanha o parque; visualizador consulta sem controles de alteração.
+- `apps/api/test/desks.test.ts`, scripts `test:desks` e opção `browser-server.ts --stage06`: testes em PostgreSQL e QA de navegador opcionais em bancos separados. README, arquitetura e plano atualizados.
+
+**Integridade e política:** todas as alterações de pontos serializam no registro da mesa; reduções bloqueiam os pontos antes de verificar/remover. A FK RESTRICT preserva conexões mesmo diante de uma associação concorrente. Aumentar acrescenta registros; não recria nem substitui pontos anteriores. A quantidade usa o número de registros, sem interpretar números nos nomes. Sequência segue o ordinal interno; quando um nome sugerido já foi usado, gera outro nome livre. Renomear preserva grafia exata, IDs, pais e created_at. Alterar quantidade exige IDs atuais na ordem da lista (`expectedPointIds`), recusando tela antiga com 409. Redução remove os últimos pontos somente sem conexão, após confirmação; qualquer falha desfaz toda a edição. Mesa só pode ser excluída sem pontos, removidos explicitamente antes. Sem cascata, arquivamento ou desvinculação implícita.
+
+Não houve migração nova, alteração de dependências/lockfile ou reset. Migrações 001/002/003 já aplicadas e dependências da etapa 05 verificadas pelo código, serviços e regressões atuais. O editor gráfico, revisões de layout e destinos/associação de conexões continuam nas etapas previstas.
+
+### Verificações executadas
+
+| Camada | Procedimento | Resultado |
+|---|---|---|
+| API e PostgreSQL | `npm run test:desks` | **10/10** passando: oito pontos sem racks; nomes exatos e mesmo nome em outra planta; limites e campos imutáveis; renomeação, posição/rotação e ampliação mantendo IDs; redução/exclusão; papéis e isolamento. |
+| Transação | Trigger sintético falha no quarto ponto da criação | Requisição falha; mesa e lote inteiros revertidos, zero órfãos. Trigger somente no banco exclusivo de testes. |
+| Conexões e redução | Fixture SQL de patch panel/porta/conexão em banco de teste, sem implementar sua API | Redução de pontos conectados, exclusão de ponto e mesa recusadas; vínculo/IDs permanecem. Nome proposto junto à redução bloqueada também não é salvo. Após desvinculação explícita de teste, redução mantém os IDs restantes. |
+| Concorrência | Duas ampliações com os mesmos IDs esperados; quatro corridas de DELETE ponto contra INSERT conexão | Uma ampliação 200 e outra 409; pontos originais preservados. Na corrida com conexão: conexão gravada implica DELETE 409; DELETE 204 implica INSERT recusado pela FK. Nunca remove vínculo nem produz órfão. |
+| Acesso | Manager em A, viewer em B, C sem permissão, cadeias/mesas/pontos cruzados, revogação | Escrita autorizada funciona; viewer 403; empresa sem acesso e referência fora do pai 404; sem sessão 401; alteração de papel/revogação vale na sessão existente. |
+| Regressão | `test:park`, `test:access`, `test:auth`, `test:db`, `test:domain` | **9/9, 13/13, 15/15, 35/35, 4/4**; com mesas, **86 testes passando**. |
+| Tipos/build | `npm run typecheck`, `npm run build`, no Windows e dentro da API Linux | Aprovados, incluindo tipos dos testes. Build web final: JS 254,26 kB / 77,28 kB gzip. |
+| Navegador | Playwright CLI/Chromium, formulários reais, 1280 × 900 e 390 × 844 | Fluxo manual e consulta de visualizador conferidos; sem overflow horizontal e sem controles visíveis menores que 44 px no viewport móvel. |
+| Operação | `npm run dev:all`, `docker compose ps`, `db:status`, health pelo proxy e `git diff --check` | Três serviços saudáveis, três migrações aplicadas, health 200/database up; sem erros de whitespace. Volumes preservados. |
+
+### Validação real no navegador
+
+Banco exclusivo `topologia_new_test06_browser_128a62366eee`, API temporária interna em 3002 e web temporária `topologia_new_web_qa06` em `127.0.0.1:5174`. Administrador sintético somente por opção explícita `--stage06`. Nenhuma carga sintética foi feita no banco de trabalho.
+
+- Criados **Empresa mesas QA → Matriz QA → Térreo QA → Planta mesas QA** pelos formulários. Sem datacenter/rack, **Nova mesa** recebeu **Mesa 01 Freso** com oito pontos. Lista e detalhe mostraram oito registros em sequência **Ponto 1…Ponto 8**, todos **Não associado**.
+- Quantidade `-1` foi bloqueada pela validação nativa do campo, sem criar mesa. Chamadas diretas do navegador com `-1`, `1.5`, `513` e nome somente branco retornaram 400. Os testes finais da API também verificaram mensagens específicas dos limites de quantidade e nome.
+- **Ponto 1** renomeado para **Ponto 099 Freso**, mesa para **Mesa 01 Freso revisada**, quantidade ampliada para dez, X = -2,5 m e rotação = 45°. Consulta da API pelo próprio navegador confirmou ID da mesa e oito IDs originais iguais, nome exato e placement atualizado. Recarga manteve contexto, dez pontos, nome e posição/rotação.
+- Redução para oito abriu **Confirmar remoção**; confirmar removeu somente os dois últimos pontos livres. Tentar excluir a mesa não vazia mostrou a confirmação e depois **Não é possível excluir: esta mesa possui pontos. Remova os pontos sem conexão primeiro.** com foco no alerta; mesa e oito pontos permaneceram.
+- Fixtures complementares de B/C foram criadas por chamadas administrativas no QA; o mesmo usuário sintético passou a manager em A e viewer em B, sem refazer login. Escritas diretas em B retornaram 403; C e ponto de outra mesa sob A retornaram 404; PATCH em A retornou 200. A listagem revelou somente A/B e seus papéis. Navegar para B mostrou os dois pontos e **Visualização — somente consulta**, sem criação/edição/exclusão ou Administração.
+- Capturas desktop/celular inspecionadas visualmente. Consulta completa e botões utilizáveis com rolagem vertical. Viewport móvel de 390 px com scrollWidth 375 (barra de rolagem do Chromium), sem overflow horizontal; zero controles visíveis com altura abaixo de 44 px. Sem teste em dispositivo físico.
+- Console sem exceções JavaScript da aplicação; os 400/403/404/409 dos cenários e 401 antes de login são esperados. Favicon 404 já existente permanece. Console da consulta final de visualizador sem erros/warnings.
+
+Evidências locais em `docs/evidencias/etapa06/`: `testes-{mesas,parque,acessos,autenticacao,banco,dominio}.txt`, `typecheck-{host,linux}.txt`, `build-{host,linux}.txt`; `navegador-{oito-pontos,ids-antes,ampliacao,reducao,invalido,invalido-api,isolamento,visualizador,exclusao-protegida,layout-celular}.txt`; `mesa-oito-desktop.png`, `mesa-celular.png`, `visualizador-celular.png` e logs de console. Capturas originais também em `output/playwright/`, ignoradas.
+
+### Estado final e operação
+
+Banco de trabalho conferido antes/depois: **2 usuários, 5 sessões, 1 empresa, 1 concessão, 1 unidade e 1 andar existentes; 0 plantas, mesas, pontos e conexões**. Os arquivos `banco-trabalho-antes.txt` e `banco-trabalho-depois.txt` são iguais. Este é o estado observado nesta etapa, diferente das contagens históricas da etapa 05. Cadastros existentes preservados; nenhum sintético ali.
+
+Servidor de QA encerrado pelo stdin: banco sintético e arquivo de credencial removidos. Container web de QA removido; `bancos-final.txt` confirma somente banco de trabalho, postgres e templates, sem bancos temporários. Volume PostgreSQL original preservado, criação `2026-09-30T17:51:39Z` em `volume.txt`. Serviços reconstruídos pelo lockfile: API `topologia_new`, web `topologia_new_web` e banco `topologia_new_db` saudáveis, somente web publicada em loopback. Evidências em `servicos-build.txt`, `servicos-final.txt` e `health-final.json`.
+
+Navegador sem sessão abriu `/parque` do ambiente de trabalho reconstruído e retornou a `/login`; tela disponível para o usuário existente. Evidências em `navegador-trabalho-final.txt` e `login-trabalho-final.png`. Health final 200/status ok/database up, em 01/10/2026 às 08:46:40 (America/Sao_Paulo).
+
+URL de trabalho: [http://localhost:5173](http://localhost:5173). Entre com o usuário existente, selecione empresa → unidade → andar → planta e use **Nova mesa**. É necessário cadastrar uma planta se ainda não existir. Use quantidade oito e abra a mesa para editar os pontos. Recarregue para conferir persistência e contexto. Para repetir as regras de API/banco: `npm run test:desks`; para subir: `npm run dev:all`; para parar preservando volumes: `npm run dev:stop`.
+
+Typecheck/build, API/PostgreSQL e navegador local foram validados separadamente. Sem teste em dispositivo físico ou produção; sem commit, push ou publicação. **Pendências essenciais da etapa 06: nenhuma. Próxima etapa: 07 — Racks, equipamentos e portas**, somente mediante nova solicitação.
+
+## Etapa 07 — Racks, equipamentos e portas
+
+**Situação: Concluída em 01/10/2026.** Cadastros disponíveis em [http://localhost:5173](http://localhost:5173), dentro do datacenter. Frente gráfica permanece na etapa 10; a API de conexões permanece na etapa 08.
+
+### Resultado e arquivos principais
+
+`packages/domain/src/racks.ts`: DTOs e limites compartilhados. `apps/api/src/racks/routes.ts`: rack, equipamento genérico/patch panel, portas em lote, edição e exclusão com dependências. `apps/web/src/Racks.tsx` e integração em `Park.tsx`: listas, formulários, confirmação de redução/remoção, contexto na URL, estados vazios/carregamento, conflitos com foco no alerta e consulta de visualizador. Registro/erros em `app.ts`, comandos `test:racks` nos dois package.json e instruções no README/IMPLEMENTACAO. Ajuste de typecheck em `desks.test.ts` remove somente um ramo inacessível após assert; demais alterações anteriores da etapa 06 preservadas.
+
+Capacidade/U inicial/altura positivas inteiras de 1 a 1000 e portas de 1 a 512; nome/tipo de 1 a 200 caracteres, preservando grafia. Equipamentos genéricos não recebem portas. Criação de equipamento e lote é transacional; ampliar acrescenta registros e mantém IDs, reduzir exige IDs atuais e remove somente as últimas portas livres. Edição preserva equipamento, portas e conexões. Rack com equipamento fora da nova capacidade, porta conectada, equipamento com portas e rack com equipamentos não podem ser reduzidos/excluídos de forma destrutiva. Não há cascata ou desvinculação implícita.
+
+Locks na ordem rack → equipamento → portas serializam escritas da API; restrições EXCLUDE GiST/FK/CHECK da migração 002 continuam protegendo sobreposição e capacidade no banco, inclusive para SQL direto. Nenhuma migração nova ou reset foi necessário. Conflitos retornam 409 compreensível; as rotas aplicam autorização atual e filiação completa.
+
+### Verificações e resultados
+
+| Camada | Verificação | Resultado |
+|---|---|---|
+| API/PostgreSQL isolado | `npm run test:racks` | **13/13**. Equipamento 3 U, adjacência, patch panels 24/48/512, limites/tipos, sobreposição/capacidade, grafia/IDs, edição/ampliação/redução/exclusão, papéis e cadeias cruzadas. |
+| Transação | Trigger sintético falha na porta 12 | Criação retorna falha; equipamento e lote inteiro revertidos, zero portas órfãs. Trigger somente no banco de teste. |
+| Concorrência | Duas instalações sobrepostas; duas quantidades com mesmos IDs; INSERTs SQL em transações distintas | Instalações: 201/409; quantidades: 200/409; SQL direto: somente um equipamento, segundo recusado por EXCLUDE/23P01. |
+| Dependências concorrentes | Corridas redução de capacidade/instalação e DELETE porta/INSERT conexão; regressões do banco | Nenhum equipamento além da capacidade, sobreposição ou vínculo removido. A operação perdedora recebe conflito ou erro da restrição; testes do banco também cobrem redução/movimentação nas duas ordens e snapshot antigo. |
+| Regressão | `test:desks`, `test:park`, `test:access`, `test:auth`, `test:db`, `test:domain` | **10/10, 9/9, 13/13, 15/15, 35/35, 4/4**, total com racks **99 testes aprovados**. |
+| Tipos/build | `docker compose exec -T api npm run typecheck` e `npm run build` | Aprovados para workspace inteiro, incluindo testes; JS web 265,90 kB / 79,48 kB gzip. |
+| Navegador real | Playwright CLI/Chromium, 1280 × 900 e 390 × 844 | Formulários de rack, genérico, PP24/48, edição de porta/posição/altura, ampliação/redução, conflitos e recarga aprovados. Capturas inspecionadas visualmente. |
+| Operação | Reinício somente de API/web, health, db:status, comparação do banco e `git diff --check` | Serviços saudáveis, health 200/database up, três migrações aplicadas, banco/volumes preservados e nenhum erro de whitespace. |
+
+### Prova no navegador
+
+QA exclusivo `topologia_new_test07_browser_9f67da137d0f`, API interna 3002, web temporária `topologia_new_web_qa07` em loopback 5174, administrador por opção explícita `--stage07`. Empresa/unidade/DC sintéticos preparados por API no navegador; rack/equipamentos/portas operados pelos formulários reais.
+
+- Criados Rack QA 42 com 42 U, Servidor QA 3U (U 1–3), PP QA 24 (U 4, 24 portas) e PP QA 48 (U 5–6, 48 portas). Listas/estados Livre e intervalos corretos. Sobreposição U 3–4 recusada e alerta focado.
+- PP48 renomeado, movido para U 10 e ampliado em altura para 3 U, depois ampliado para 50 portas. Consulta pelo próprio navegador confirmou ID do equipamento e os 48 IDs originais iguais. Porta 1 renomeada para Porta 099 Freso. Redução do rack para 11 U bloqueada, com foco no alerta.
+- Fixture SQL de conexão somente na última porta do QA: reduzir para 24 exigiu confirmação e foi bloqueado pela conexão, mantendo os 50 registros. Após remoção explícita da conexão de teste, repetir a confirmação manteve os primeiros 24 IDs e removeu apenas as últimas portas livres. Recarga manteve nome, U, altura, quantidade e contexto.
+- Consulta como visualizador sintético mostrou rack/equipamentos/portas sem botões Novo/Editar/Excluir. Em 390 px: scrollWidth 375 (barra do Chromium), sem overflow horizontal; zero controles visíveis com altura inferior a 44 px. Sem teste em dispositivo físico.
+- Console sem exceções JavaScript da aplicação; 401 de sessão inicial e 409 de conflitos são esperados. Favicon 404 preexistente permanece.
+
+Evidências locais ignoradas em `docs/evidencias/etapa07/`: `testes-{racks,desks,park,access,auth,db,domain}.txt`, `typecheck-linux.txt`, `build-linux.txt`, `navegador-{pp24,pp48,conflito,alerta,ids-antes,edicao-ampliacao,capacidade,reducao-protegida,reducao-livre,recarga,layout-celular,visualizador,visualizador-layout,trabalho-final}.txt`, `rack-desktop.png`, `rack-celular.png`, `visualizador-celular.png`, `console.txt`, `health-final.json` e snapshots de operação/banco.
+
+### Estado final e validação pelo usuário
+
+Servidor QA encerrado por SIGTERM; banco sintético/credencial removidos, container web QA removido. `bancos-final.txt` confirma somente topologia_new, postgres e templates. Banco de trabalho observado: 2 usuários, 6 sessões, 1 empresa, 1 concessão, 1 unidade, 1 andar, 1 planta, 1 mesa, 8 pontos, 1 datacenter, zero racks/equipamentos/portas/conexões. Esses cadastros existentes são diferentes do snapshot histórico da etapa 06; nenhuma carga de QA foi executada ali. Contagens/checksums das 14 tabelas são iguais antes/depois do reinício (`banco-trabalho-{antes,depois}-reinicio.txt`).
+
+API `topologia_new`, web `topologia_new_web` e PostgreSQL `topologia_new_db` ficaram saudáveis. Somente web exposta em `127.0.0.1:5173`; volumes existentes mantidos. Health final em 01/10/2026 às 09:12:34 (America/Sao_Paulo). Navegador sem sessão válida do banco de trabalho mostra login. Para validar: entre em [http://localhost:5173](http://localhost:5173), selecione empresa → unidade → datacenter, use **Novo rack** e **Novo equipamento**, escolha patch panel e informe 24 ou 48 portas. Abra o equipamento para editar os nomes. Recarregue para conferir persistência. `npm run dev:stop` para parar preservando volumes; `npm run dev:all` para subir novamente.
+
+Sem dispositivo físico, produção, commit, push ou publicação. **Pendências essenciais da etapa 07: nenhuma. Próxima etapa: 08 — API de conexões e proteção contra concorrência**, somente mediante nova solicitação.

@@ -2,9 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { NamedEntity, ParkSnapshot, Unit } from '@topologia-new/domain';
 import { api, ApiError, json, message } from './api';
+import { Desks } from './Desks';
+import { Racks } from './Racks';
 
 export function navigatePark(changes: Record<string, string>) {
   const query = new URLSearchParams(location.search);
+  if (['unidade', 'andar', 'planta', 'datacenter'].some(key => key in changes)) query.delete('mesa');
+  if (['unidade', 'andar', 'planta', 'datacenter'].some(key => key in changes)) { query.delete('rack'); query.delete('equipamento'); }
+  if ('rack' in changes) query.delete('equipamento');
   for (const [key, value] of Object.entries(changes)) { if (value) query.set(key, value); else query.delete(key); }
   history.pushState(null, '', `/parque?${query}`);
   window.dispatchEvent(new PopStateEvent('popstate'));
@@ -91,10 +96,14 @@ export function Park({ data, refresh, checkSession }: { data: ParkSnapshot; refr
       {floor ? <div key={floor.id}>
         <h3>Andar: {floor.name}</h3>
         <Collection {...common} title="Plantas" singular="planta" gender="a" path={`${base}/units/${unit.id}/floors/${floor.id}/plans`} items={data.plans.filter(item => item.floorId === floor.id)} selected={plan?.id} select={id => navigatePark({ planta: id, datacenter: '' })} />
-        {plan && <section className="park-detail"><h4>Planta: {plan.name}</h4><p>Planta cadastrada neste andar. Desenho, importação e posicionamento de objetos serão disponibilizados nas próximas etapas.</p></section>}
+        {plan && <div key={plan.id}><section className="park-detail"><h4>Planta: {plan.name}</h4><p>Cadastre mesas e pontos abaixo. Desenho e importação serão disponibilizados nas próximas etapas.</p></section>
+          <Desks {...common} park={data} path={`${base}/units/${unit.id}/floors/${floor.id}/plans/${plan.id}/desks`} selected={query.get('mesa') ?? ''} />
+        </div>}
       </div> : <p className="empty-state">Selecione um andar para consultar suas plantas.</p>}
       <Collection {...common} title="Datacenters da unidade" singular="datacenter" path={`${base}/units/${unit.id}/datacenters`} items={data.datacenters.filter(item => item.unitId === unit.id)} selected={datacenter?.id} select={id => navigatePark({ datacenter: id, andar: '', planta: '' })} />
-      {datacenter && <section className="park-detail"><h4>Datacenter: {datacenter.name}</h4><p>Datacenter vinculado à unidade {unit.name}. O cadastro de racks será disponibilizado na etapa 07.</p></section>}
+      {datacenter && <div key={datacenter.id}><section className="park-detail"><h4>Datacenter: {datacenter.name}</h4><p>Datacenter vinculado à unidade {unit.name}.</p></section>
+        <Racks {...common} park={data} path={`${base}/units/${unit.id}/datacenters/${datacenter.id}/racks`} selected={query.get('rack') ?? ''} selectedEquipment={query.get('equipamento') ?? ''} />
+      </div>}
     </div>}
   </div>;
 }

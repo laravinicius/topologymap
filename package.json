@@ -21,6 +21,8 @@
     "test:auth": "docker compose exec -T api npm run test:auth --workspace @topologia-new/api",
     "test:access": "docker compose exec -T api npm run test:access --workspace @topologia-new/api",
     "test:park": "docker compose exec -T api npm run test:park --workspace @topologia-new/api",
+    "test:desks": "docker compose exec -T api npm run test:desks --workspace @topologia-new/api",
+    "test:racks": "docker compose exec -T api npm run test:racks --workspace @topologia-new/api",
     "admin:create": "docker compose exec api npm run admin:create --workspace @topologia-new/api"
   }
 }

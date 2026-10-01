@@ -1,6 +1,6 @@
 # Topologia New
 
-Projeto independente para documentar plantas, mesas, datacenters, racks e conexões de várias empresas. Etapas 01 a 05 concluídas: ambiente Docker, domínio, migrações, autenticação, administração global, acessos por empresa e cadastros da hierarquia do parque. O parque começa vazio; o primeiro administrador é criado explicitamente pelo usuário, sem senha padrão.
+Projeto independente para documentar plantas, mesas, datacenters, racks e conexões de várias empresas. Etapas 01 a 06 concluídas: ambiente Docker, domínio, migrações, autenticação, administração global, acessos por empresa, hierarquia do parque e mesas com pontos. Novas instalações começam com o parque vazio; o primeiro administrador é criado explicitamente pelo usuário, sem senha padrão.
 
 - [Escopo](docs/ESCOPO.md)
 - [Arquitetura](docs/IMPLEMENTACAO.md)
@@ -85,6 +85,30 @@ API de cadastro, sob `/api/companies/:companyId`: `/units`, `/units/:unitId/floo
 
 `npm run test:park` valida os cadastros, papéis, filiações, renomeações, exclusões e concorrência em PostgreSQL exclusivo. Não há migração nova nem seed: as migrações 001/002 já protegem toda a hierarquia. O banco de trabalho e seus volumes são preservados.
 
+## Cadastrar mesas e pontos
+
+Selecione empresa → unidade → andar → planta. Use **Nova mesa**, informe nome e quantidade de pontos e clique em **Salvar mesa**. É permitido criar sem racks ou com zero pontos. O cadastro cria mesa e todos os pontos em uma transação: qualquer falha desfaz a operação inteira. Os nomes iniciais são `Ponto 1`, `Ponto 2` etc.; abra a mesa para consultar os pontos e use **Editar** no ponto para renomeá-lo. Pontos livres aparecem como **Não associado**; a associação e o caminho completo ficam para as etapas 08/09.
+
+**Editar mesa** altera nome, posição do centro X/Y, dimensões e rotação, mantendo IDs e vínculos. Aumentar a quantidade acrescenta pontos sem substituir os existentes; a contagem vem dos registros, independentemente dos números presentes nos nomes. Novos pontos seguem a ordem interna e recebem nomes livres quando uma renomeação já ocupou o nome sugerido. Nomes são preservados sem trim, normalização ou alteração da grafia; são únicos dentro da mesa, e o nome da mesa é único na planta.
+
+Limites da API e dos campos: nome de 1 a 200 caracteres, com pelo menos um caractere não branco; quantidade inteira de 0 a 512 pontos por mesa; X/Y entre -1.000.000 e 1.000.000 metros; largura/profundidade maiores que zero e até 10.000 metros; rotação de 0 até menos de 360 graus. A geometria usa metros e centro como âncora, independente do renderizador. O editor gráfico e revisões do layout permanecem nas etapas posteriores.
+
+Reduzir exige confirmação e remove os últimos pontos na ordem da lista. Se algum deles tiver conexão, toda a alteração é recusada com 409. Excluir ponto conectado também é bloqueado. Excluir uma mesa exige remover explicitamente todos os seus pontos primeiro; nenhum filho ou vínculo é removido em cascata. A API exige `expectedPointIds` (IDs atuais na ordem exibida) ao alterar `pointCount`, rejeitando com 409 uma tela desatualizada. Atualize a lista antes de repetir a alteração.
+
+API sob `/api/companies/:companyId/units/:unitId/floors/:floorId/plans/:planId/desks`: GET lista, POST `{ name, pointCount, placement? }`; `/:deskId` aceita GET detalhe, PATCH `{ name?, placement?, pointCount?, expectedPointIds? }` e DELETE. `/:deskId/points/:pointId` aceita PATCH `{ name }` e DELETE. `placement` é `{ x, y, width, height, rotation }`. Filiação/IDs/ordinal não são editáveis. Todas as rotas verificam a cadeia da URL e o acesso atual à empresa. Não há migração nova nem carga de dados no banco de trabalho.
+
+`npm run test:desks` valida transações, preservação de IDs, limites, dependências, isolamento, papéis e concorrência em PostgreSQL exclusivo. Para QA de navegador, o servidor opcional `apps/api/test/browser-server.ts --stage06` cria somente um banco separado e um administrador sintético explícito; requer web temporária em localhost:5174 com proxy para api:3002. Credenciais temporárias ficam no arquivo ignorado `output/playwright/runtime.json`; encerrar o servidor pelo stdin/SIGTERM remove o banco e esse arquivo. Não execute essa carga no banco de trabalho.
+
+## Racks, equipamentos e portas
+
+Selecione empresa → unidade → datacenter e use **Novo rack**. Informe nome e capacidade em U. Abra o rack e use **Novo equipamento**: escolha equipamento genérico ou patch panel, nome, tipo livre, U inicial e altura. Para patch panel, informe a quantidade de portas (por exemplo, 24 ou 48). Equipamento e portas são criados em uma transação. A lista mostra o intervalo ocupado em U, e o detalhe do patch panel mostra as portas **Livre/Ocupada**, com edição de nomes. A frente gráfica será feita na etapa 10; conexão será implementada na etapa 08.
+
+Limites: capacidade/U inicial/altura inteiras de 1 a 1000; portas de 1 a 512; nome/tipo de 1 a 200 caracteres, sem normalizar a grafia. O equipamento precisa caber inteiro e não pode compartilhar U com outro. Conflitos retornam 409, inclusive na concorrência. Editar posição/altura/nome/tipo mantém IDs, portas e vínculos; o cadastro genérico/patch panel e os pais são imutáveis. Aumentar portas mantém as existentes. Reduzir pede confirmação e elimina somente as últimas portas sem conexão. Reduzir capacidade com equipamentos fora do novo limite é bloqueado. Excluir rack exige ausência de equipamentos; excluir equipamento exige ausência de portas; excluir porta exige ausência de conexão. Não há remoção em cascata.
+
+API sob `/api/companies/:companyId/units/:unitId/datacenters/:datacenterId/racks`: GET lista, POST `{ name, capacityU }`; `/:rackId` aceita GET detalhe/lista de equipamentos, PATCH `{ name?, capacityU? }` e DELETE. `/:rackId/equipment` aceita POST `{ name, kind, equipmentType, startU, heightU, portCount? }` (`kind`: `generic` ou `patch_panel`). `/:rackId/equipment/:equipmentId` aceita GET detalhe/portas, PATCH `{ name?, equipmentType?, startU?, heightU?, portCount?, expectedPortIds? }` e DELETE; `/ports/:portId` aceita PATCH `{ name }` e DELETE. Ao alterar quantidade, envie os IDs atuais das portas na ordem retornada; 409 exige atualizar e reabrir a edição. A proteção no banco já existe na migração 002, sem nova migração ou reset nesta etapa.
+
+`npm run test:racks` valida a API e as restrições em PostgreSQL separado. O servidor opcional `apps/api/test/browser-server.ts --stage07` provisiona administrador sintético somente em banco exclusivo, com web de QA em localhost:5174/proxy api:3002. Encerrar por SIGTERM ou stdin remove banco e credencial temporária. Não carrega dados sintéticos no banco de trabalho.
+
 ## Login, sessão e logout
 
 `POST /api/auth/login` recebe JSON `{ login, password }`; `GET /api/auth/session` retorna apenas usuário público e expiração; `POST /api/auth/logout` revoga a sessão e limpa o cookie. `GET /api/park` é a entrada autenticada. Sem sessão, sessão/parque retornam HTTP 401 e a interface direciona a `/login`. O healthcheck permanece público. Recarregar preserva uma sessão válida; a tela também revalida ao voltar ao foco e a cada 30 segundos. **Sair** só confirma o logout após a resposta da API.
@@ -149,6 +173,9 @@ npm run test:domain    # contrato e validações de geometria
 npm run test:db        # PostgreSQL real, usando bancos sintéticos separados
 npm run test:auth      # provisionamento, cookies, sessões, expiração, origem e limites
 npm run test:access    # administração e autorização por empresa; PostgreSQL sintético separado
+npm run test:park      # hierarquia, filiações, dependências e acesso
+npm run test:desks     # mesas/pontos, transações, preservação e concorrência
+npm run test:racks     # racks/equipamentos/portas, capacidade, lotes e concorrência
 ```
 
 Cada migração SQL é transacional e registrada com SHA-256 em `schema_migrations`. Um lock no PostgreSQL serializa migradores simultâneos. Falhas revertem a versão inteira; versões anteriores permanecem aplicadas. Não edite arquivos já aplicados: acrescente a próxima versão sequencial. Não há comando de reset/down de esquema.
@@ -202,4 +229,4 @@ O projeto Compose é `topologia_new`. Todos os comandos acima operam somente ess
 
 ## Limites desta entrega
 
-A próxima etapa é **04 — Usuários e permissões por empresa**, ainda pendente e não iniciada. Autenticação e bootstrap do primeiro administrador estão disponíveis; não há administração de usuários, empresas, permissões ou cadastros do parque nesta entrega. Editor 2D, importação, QR Code e produção permanecem nas etapas previstas. A identidade Microgate completa permanece na etapa 18; logos serão fornecidos posteriormente.
+A próxima etapa é **07 — Racks, equipamentos e portas**, pendente e não iniciada. Autenticação, administração, hierarquia e mesas/pontos estão disponíveis. Associação de pontos, frente do rack, editor 2D, importação, QR Code e produção permanecem nas etapas previstas. A identidade Microgate completa permanece na etapa 18; logos serão fornecidos posteriormente.

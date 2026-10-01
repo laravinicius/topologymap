@@ -14,6 +14,8 @@
     "test:auth": "tsx --test --test-concurrency=1 test/auth.test.ts",
     "test:access": "tsx --test --test-concurrency=1 test/access.test.ts",
     "test:park": "tsx --test --test-concurrency=1 test/park.test.ts",
+    "test:desks": "tsx --test --test-concurrency=1 test/desks.test.ts",
+    "test:racks": "tsx --test --test-concurrency=1 test/racks.test.ts",
     "admin:create": "tsx src/auth/admin-cli.ts"
   },
   "dependencies": {

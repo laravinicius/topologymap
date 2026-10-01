@@ -9,6 +9,8 @@ import { hashPassword, normalizeLogin, validLogin, verifyPassword } from './auth
 import { HttpError, registerAuthorization } from './auth/authorization.js';
 import { registerAdministration } from './admin/routes.js';
 import { registerPark } from './park/routes.js';
+import { registerDesks } from './desks/routes.js';
+import { registerRacks } from './racks/routes.js';
 
 declare module 'fastify' {
   interface FastifyRequest { session: AuthSession | null }
@@ -43,6 +45,31 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
 
   app.setErrorHandler<FastifyError>((error, _request, reply) => {
     if (error instanceof HttpError) return reply.code(error.statusCode).send({ message: error.message });
+    if (error.validation && _request.routeOptions.url?.includes('/racks')) {
+      const issue = error.validation[0];
+      const field = issue?.instancePath?.slice(1) || (issue?.params as { missingProperty?: string })?.missingProperty;
+      const message = field === 'capacityU' || field === 'startU' || field === 'heightU'
+        ? `${field === 'capacityU' ? 'Capacidade' : field === 'startU' ? 'U inicial' : 'Altura'} deve ser um inteiro entre 1 e 1000 U.`
+        : field === 'portCount' ? 'Quantidade de portas deve ser um inteiro entre 1 e 512, somente para patch panels.'
+          : field === 'name' || field === 'equipmentType' ? 'Nome e tipo devem conter de 1 a 200 caracteres, com pelo menos um caractere diferente de espaço.'
+            : 'Confira os campos e IDs. Para alterar portas, informe a quantidade e a lista atual de IDs. Tipo de cadastro, identificadores e filiação não são editáveis.';
+      return reply.code(400).send({ message });
+    }
+    if (error.validation && _request.routeOptions.url?.includes('/desks')) {
+      const issue = error.validation[0];
+      const field = issue?.instancePath ?? '';
+      const missing = issue?.params as { missingProperty?: string } | undefined;
+      const message = field.startsWith('/pointCount') || missing?.missingProperty === 'pointCount'
+        ? 'Quantidade de pontos deve ser um inteiro entre 0 e 512.'
+        : field.startsWith('/name') || missing?.missingProperty === 'name'
+          ? 'Nome deve conter de 1 a 200 caracteres e não pode ser vazio ou somente espaços.'
+          : field.startsWith('/placement')
+            ? 'Posição: X/Y entre -1000000 e 1000000 m; dimensões maiores que zero até 10000 m; rotação de 0 até menos de 360 graus.'
+            : field.startsWith('/expectedPointIds') || missing?.missingProperty === 'expectedPointIds'
+              ? 'Para alterar a quantidade, informe a lista atual de IDs dos pontos, sem duplicação.'
+              : 'Confira os IDs e campos informados. Identificadores, filiação e ordem dos pontos não são editáveis.';
+      return reply.code(400).send({ message });
+    }
     if (error.validation || error.statusCode === 400) return reply.code(400).send({ message: 'Confira os campos informados e seus limites.' });
     const code = (error as FastifyError & { code?: string }).code;
     if (code === '23505') return reply.code(409).send({ message: 'Nome ou login já cadastrado.' });
@@ -138,6 +165,8 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
   registerAuthorization(app, pool);
   registerAdministration(app, pool);
   registerPark(app, pool);
+  registerDesks(app, pool);
+  registerRacks(app, pool);
   app.get('/api/auth/session', { config: { access: 'session' } }, async request => request.session!);
   app.post('/api/auth/logout', async (request, reply) => {
     const token = request.cookies[cookieName];

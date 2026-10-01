@@ -61,6 +61,9 @@ h3 { font-size: 1.05rem; margin: 24px 0 12px; }
 .checkbox { display: flex; align-items: center; gap: 12px; }
 .checkbox input { width: 24px; min-height: 24px; margin: 0; }
 .permissions { margin-top: 28px; border-top: 1px solid #cbd5e1; }
+.placement-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+fieldset { min-width: 0; border: 1px solid #cbd5e1; border-radius: 6px; margin: 0 0 20px; }
+@media (max-width: 480px) { .placement-fields { grid-template-columns: minmax(0, 1fr); } }
 .permission-list { list-style: none; padding: 0; }
 .permission-list li { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 0; border-bottom: 1px solid #e2e8f0; }
 .permission-list button { margin: 0; }

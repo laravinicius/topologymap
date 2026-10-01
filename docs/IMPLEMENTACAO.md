@@ -1,6 +1,6 @@
 # Arquitetura e plano de implementação
 
-Status: etapas 01 a 05 implementadas e validadas localmente; demais funcionalidades continuam como proposta técnica. Atualizado em 30/09/2026. Evidências em [PROGRESSO.md](PROGRESSO.md).
+Status: etapas 01 a 07 implementadas e validadas localmente; demais funcionalidades continuam como proposta técnica. Atualizado em 01/10/2026. Evidências em [PROGRESSO.md](PROGRESSO.md).
 
 Os requisitos confirmados e os detalhes propostos estão separados em [ESCOPO.md](ESCOPO.md).
 
@@ -158,6 +158,28 @@ Migrações deverão funcionar em volumes existentes. Documentar backup e restau
 
 Ferramenta da etapa 02: `npm run db:migrate` / `npm run db:status`, execução explícita, transação por arquivo, SHA-256 e advisory lock de sessão. Migrações aplicadas no volume inicializado da etapa 01 e em bancos novos/atualizados de teste; sem reset. Dockerfile da API inclui os SQLs. Testes sintéticos criam/removem bancos próprios, preservando o banco de trabalho e serviços de outros projetos.
 
+### Mesas e pontos — etapa 06
+
+Contratos e limites compartilhados em `packages/domain/src/desks.ts`, API em `apps/api/src/desks/routes.ts` e interface em `apps/web/src/Desks.tsx`, integrada à planta. Rotas aninhadas na cadeia empresa/unidade/andar/planta/mesa; autorização central aplicada também a pontos. Criação e alteração de quantidade usam transação, e as alterações de uma mesa serializam no registro de `desks` com `FOR UPDATE`. Na redução, os pontos são bloqueados antes de consultar/remover, e as FKs RESTRICT protegem também a corrida com novas conexões. GET detalhe usa snapshot REPEATABLE READ de mesa/pontos; lista conta registros reais. Não foi necessária migração.
+
+Quantidade de 0 a 512, nomes de 1 a 200 caracteres sem normalização, coordenadas X/Y de -1000000 a 1000000 m, dimensões positivas até 10000 m, rotação [0,360). São limites técnicos de entrada, definidos nesta entrega. A sequência interna segue o maior ordinal existente, sem examinar números nos nomes; nomes sugeridos ocupados são pulados. Pontos existentes nunca são recriados durante ampliação. Alterar quantidade exige `expectedPointIds` na ordem atual, recusando alterações concorrentes/desatualizadas. Redução elimina somente os últimos pontos, após confirmação na interface e somente sem conexão. Excluir mesa exige ausência de pontos; não há cascata, desvinculação implícita ou arquivamento. Renomear/mover/girar mantém IDs, filiação, created_at e conexões.
+
+Lista e detalhe mantêm a mesa na URL (`mesa=UUID`), revalidam junto com o parque e limpam a seleção ao trocar um pai. Visualizadores consultam sem controles de escrita. Geometria permanece no contrato `Rectangle`, em metros e com centro como âncora; não implementa editor ou revisão de layout nesta etapa. Detalhe retorna `connectionId` e apresenta Associado/Não associado; edição de conexões e composição do destino continuam nas etapas 08/09. Testes em PostgreSQL separado e navegador real registrados no progresso.
+
+Referências consultadas para validação e locks: [Fastify — Validation and Serialization](https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/) e [PostgreSQL — Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html).
+
+### Racks, equipamentos e portas — etapa 07
+
+Contratos/limites em `packages/domain/src/racks.ts`, rotas em `apps/api/src/racks/routes.ts`, listas/formulários em `apps/web/src/Racks.tsx`, integrados ao datacenter em `Park.tsx`. A cadeia empresa/unidade/datacenter/rack/equipamento/porta é validada na API, com autorização central e consulta por empresa e pai. Rack/equipamento selecionados ficam na URL; trocar um pai limpa seus filhos. Revalidação acompanha o snapshot do parque. Visualizadores consultam listas e estados Livre/Ocupada sem controles de escrita. Frente gráfica e associação permanecem nas etapas 10 e 08.
+
+Capacidade, U inicial e altura: inteiros de 1 a 1000; quantidade de portas: inteiro de 1 a 512, somente para patch panels. Nomes/tipo: 1 a 200 caracteres com pelo menos um não branco, preservando grafia. Equipamentos genéricos não têm portas. `kind`, IDs, pais e ordinais não são editáveis. Alterar posição/altura/nome/tipo mantém equipamento, portas e conexões. Contagens derivam dos registros; a sequência usa ordinais e pula nomes sugeridos já ocupados. Ampliação só acrescenta portas. Mudança de quantidade exige `expectedPortIds` na ordem atual; tela desatualizada recebe 409. Redução remove as últimas portas livres, mediante confirmação na interface. Conexão em qualquer porta removida desfaz a operação inteira, incluindo outros campos.
+
+Toda escrita de filho bloqueia primeiro o rack e depois equipamento/portas, serializando com alteração da capacidade. As validações de capacidade e sobreposição da API retornam 409 compreensível; a migração 002 continua protegendo escritores externos com `equipment_no_overlap` (EXCLUDE GiST sobre intervalo de U), `equipment_capacity_check` e FK de capacidade com ON UPDATE CASCADE. RESTRICT protege corridas entre remoção e nova conexão/filho. Não houve alteração do esquema ou reset. Criação de equipamento e lote de portas é transacional; detalhe usa snapshot REPEATABLE READ.
+
+Exclusão permanece explícita e sem cascata: porta exige ausência de conexão; equipamento exige ausência de portas; rack exige ausência de equipamentos. É possível remover individualmente todas as portas livres para excluir um patch panel, ou gerar novamente um lote positivo. Reduzir rack só é permitido se todos os equipamentos couberem. Não há desvinculação automática nem conversão entre genérico e patch panel.
+
+`npm run test:racks`: PostgreSQL exclusivo, incluindo 24/48/512 portas, múltiplas U, rollback de lote, IDs/grafia, dependências, papéis/cadeias cruzadas e concorrência na API e SQL direto. Testes anteriores mantidos; pequeno ajuste no teste da etapa 06 removeu um ramo inacessível após `assert.equal` para o typecheck atual. Referências conferidas: [PostgreSQL — Constraints](https://www.postgresql.org/docs/current/ddl-constraints.html) e [Fastify — Validation and Serialization](https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/). Evidências de navegador e operação no progresso.
+
 ## 8. Etapas e entregas
 
 - [x] **Base local (etapa 01):** workspace, dependências, Compose, banco persistente, healthcheck e comandos de operação.
@@ -165,6 +187,8 @@ Ferramenta da etapa 02: `npm run db:migrate` / `npm run db:status`, execução e
 - [x] **Autenticação (etapa 03):** primeiro administrador explícito, login/logout, sessões persistidas, expiração, proteção de origem e limites; API/banco e navegador local validados em dados sintéticos separados.
 - [x] **Usuários e permissões (etapa 04):** administração global, empresa básica, acessos por empresa, autorização central e seletor; API/PostgreSQL e navegador desktop/celular validados com dados sintéticos isolados.
 - [x] **Organização do parque (etapa 05):** empresas, unidades, andares, plantas e datacenters; contexto na URL, estados vazios, IDs estáveis e exclusão protegida; API/PostgreSQL e formulários em navegador desktop/celular validados em banco exclusivo.
+- [x] **Mesas e pontos (etapa 06):** cadastro/lista/detalhe, lote transacional, nomes editáveis, geometria do domínio, ampliação preservando IDs e redução/exclusão protegidas; API/PostgreSQL e navegador em banco separado.
+- [x] **Racks, equipamentos e portas (etapa 07):** listas/formulários, capacidade e ocupação em U, genéricos e patch panels, portas em lote, IDs estáveis, reduções/exclusões protegidas e conflitos concorrentes; API/PostgreSQL e navegador em banco separado.
 - [ ] **Cadastros e conexões:** hierarquia completa, criação em lote de pontos/portas, vínculo único e edição pelas duas extremidades.
 - [ ] **Rack 2D:** capacidade em U, equipamentos genéricos, patch panels, seleção de portas e proteção contra sobreposição.
 - [ ] **Planta 2D:** desenho, setores, importação de fundos, escala, posicionamento, transformações e salvamento com revisão.

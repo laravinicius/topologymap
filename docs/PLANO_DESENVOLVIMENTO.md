@@ -4,7 +4,7 @@ Projeto: Topologia New. Elaborado em 30/09/2026.
 
 **Estado inicial:** documentação criada; aplicação, banco e containers ainda não implementados. Todas as etapas abaixo começam pendentes.
 
-**Estado atual (30/09/2026):** etapas 01 a 05 concluídas, com ambiente local em execução e evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 06 a 21 permanecem pendentes. Usuários, sessões, empresa e acessos existentes no banco de trabalho foram preservados; novas instalações usam provisionamento explícito conforme o README.
+**Estado atual (01/10/2026):** etapas 01 a 07 concluídas, com ambiente local em execução e evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 08 a 21 permanecem pendentes. Usuários, sessões, empresa, acessos e cadastros existentes no banco de trabalho foram preservados; novas instalações usam provisionamento explícito conforme o README.
 
 Este documento transforma [ESCOPO.md](ESCOPO.md) e [IMPLEMENTACAO.md](IMPLEMENTACAO.md) em tarefas executáveis, em ordem, com solicitações prontas para copiar para o agente.
 
@@ -76,8 +76,8 @@ Usar os estados `Pendente`, `Em andamento`, `Concluída` e `Bloqueada`. Marcar b
 | 03 | Administrador, login e sessões | 02 | Concluída |
 | 04 | Usuários e permissões por empresa | 03 | Concluída |
 | 05 | Empresas, unidades, andares, plantas e datacenters | 04 | Concluída |
-| 06 | Mesas e pontos | 05 | Pendente |
-| 07 | Racks, equipamentos e portas | 05 | Pendente |
+| 06 | Mesas e pontos | 05 | Concluída |
+| 07 | Racks, equipamentos e portas | 05 | Concluída |
 | 08 | API de conexões e proteção contra concorrência | 06, 07 | Pendente |
 | 09 | Consulta e associação pela mesa | 08 | Pendente |
 | 10 | Visualização frontal do rack e associação pela porta | 09 | Pendente |
