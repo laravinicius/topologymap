@@ -5,6 +5,7 @@ import { HealthPanel } from './HealthPanel';
 import { api, ApiError, message } from './api';
 import { Workspace } from './Workspace';
 import { confirmNavigation } from './navigation';
+import { Brand } from './Brand';
 
 export function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -82,6 +83,7 @@ export function App() {
   return (
     <main className={!session ? 'login-layout' : undefined}>
       <header>
+        <Brand />
         <p className="eyebrow">Documentação de infraestrutura</p>
         <h1>Topologia New</h1>
         <p className="intro">Plantas, mesas, racks e conexões em um só lugar.</p>

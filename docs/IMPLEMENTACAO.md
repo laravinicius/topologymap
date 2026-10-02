@@ -105,7 +105,7 @@ Os pedidos assíncronos de destinos usam geração para descartar respostas anti
 
 ### Área de planta — etapa 12
 
-`PlanEditor.tsx` integra o snapshot/revisão da etapa 11 a `PlanCanvas.tsx`, com Konva **10.7.0** e react-konva **19.3.0**, compatível com React 19.3.0. Dependências fixadas no lockfile; o editor é carregado sob demanda ao abrir uma planta, mantendo Konva fora do bundle inicial das demais telas. A identidade visual existente foi mantida; etapa 18 não iniciada.
+`PlanEditor.tsx` integra o snapshot/revisão da etapa 11 a `PlanCanvas.tsx`, com Konva **10.7.0** e react-konva **19.3.0**, compatível com React 19.3.0. Dependências fixadas no lockfile; o editor é carregado sob demanda ao abrir uma planta, mantendo Konva fora do bundle inicial das demais telas. A base funcional foi preservada; identidade Microgate aplicada na etapa 18 conforme [IDENTIDADE_VISUAL.md](IDENTIDADE_VISUAL.md).
 
 O adaptador usa **80 pixels por metro** antes do zoom. Retângulos são ancorados no centro; as alças convertem escala em largura/profundidade reais e normalizam a rotação horária em `[0,360)`. O node é sincronizado explicitamente ao terminar a transformação, inclusive quando o ajuste à grade devolve o mesmo valor anterior. Roda do mouse amplia no cursor; ferramentas/botões movem a câmera e enquadram os objetos incluindo sua rotação. A margem de enquadramento acomoda a alça de rotação. Grade adaptativa visível; ajuste opcional dos centros a **0,25 m**, rotação com encaixe a 45°, alinhamento X/Y entre centros e alinhamento manual à grade.
 
@@ -155,7 +155,7 @@ Salvar o layout com número de revisão. Se outra sessão já alterou a revisão
 
 Os DTOs públicos estão em `packages/domain/src/access.ts`, sem hashes ou registros de sessões. Schemas recusam propriedades extras e coerção de tipos para impedir alterações de privilégios por mass assignment. O esquema da migração 001 já cobre a entrega; nenhuma migração ou reset foi necessário. Teste de escrita com `access: 'company'` utiliza uma rota registrada somente no app de teste e um UPDATE real em unidades sintéticas. Não se publica uma rota fictícia de escrita nem se antecipa o CRUD da etapa 05.
 
-`apps/web/src/Workspace.tsx` mostra somente empresas permitidas, papel atual, seleção na URL e estados vazios. Revalida ao carregar, mudar de empresa, foco, 30 segundos ou atualização manual; respostas antigas não substituem seleção nova. Uma revogação retira o conteúdo e a opção do seletor na próxima atualização; a API já bloqueia a próxima requisição. `Administration.tsx` oferece formulários com labels, limites, feedback anunciado, listas/seletores e revogação explícita. Layout usa duas colunas no desktop e uma no celular; identidade Microgate permanece na etapa 18.
+`apps/web/src/Workspace.tsx` mostra somente empresas permitidas, papel atual, seleção na URL e estados vazios. Revalida ao carregar, mudar de empresa, foco, 30 segundos ou atualização manual; respostas antigas não substituem seleção nova. Uma revogação retira o conteúdo e a opção do seletor na próxima atualização; a API já bloqueia a próxima requisição. `Administration.tsx` oferece formulários com labels, limites, feedback anunciado, listas/seletores e revogação explícita. Layout usa duas colunas no desktop e uma no celular; identidade Microgate aplicada na etapa 18.
 
 Senhas usam scrypt nativo assíncrono do Node 24 (`N=2^17, r=8, p=1`, salt aleatório de 16 bytes, chave de 32 bytes e timingSafeEqual). A escolha evita dependências nativas adicionais e usa os parâmetros recomendados para scrypt pela [OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). Foram conferidos os contratos de [node:crypto](https://nodejs.org/docs/latest-v24.x/api/crypto.html), [hooks Fastify](https://fastify.dev/docs/latest/Reference/Hooks/) e [@fastify/cookie](https://github.com/fastify/fastify-cookie); a única dependência externa nova é `@fastify/cookie` 11.1.2, compatível com Fastify 5 e fixa no lockfile.
 
@@ -181,7 +181,9 @@ Políticas/rotas da API não mudaram: visualizador segue sem escrita em qualquer
 
 Usar estados textuais para porta livre/ocupada e ponto não associado; cores complementam a informação. Manter foco visível, controles com rótulos, contraste adequado e alternativa ao arraste.
 
-A consulta à skill UI/UX Pro Max produziu sugestões gerais de minimalismo para aplicações empresariais e uma orientação específica sobre alternativas ao arraste. As sugestões de landing page, paleta comercial e fontes não serão adotadas automaticamente. A referência visual definida pelo usuário, Microgate, prevalece. Não foi gerado um design system definitivo nesta etapa.
+A consulta à skill UI/UX Pro Max produziu sugestões gerais de minimalismo para aplicações empresariais e uma orientação específica sobre alternativas ao arraste. As sugestões de landing page, paleta comercial e fontes não serão adotadas automaticamente. A referência visual definida pelo usuário, Microgate, prevalece. Não foi gerado um design system definitivo na etapa 17. A etapa 18 define os tokens conforme a referência oficial.
+
+**Etapa 18 implementada:** `tokens.css` centraliza paleta, tipografia, espaçamento e estados; `theme.ts` resolve as mesmas variáveis para Konva. Brand usa somente assets fornecidos, com cópias idênticas aos originais. Rótulos da planta mantêm tamanho de tela e fundos opacos; setores translúcidos preservam as imagens importadas. Portas ocupadas têm número sublinhado, legenda e estados textuais, além da lista equivalente. Foco, consulta compacta, edição e QR/print foram revalidados em Chromium. Sem mudanças de API, DTO, migração ou autorização. Contrato e limites em [IDENTIDADE_VISUAL.md](IDENTIDADE_VISUAL.md); prova em [PROGRESSO.md](PROGRESSO.md).
 
 ## 7. Docker e persistência
 
@@ -259,7 +261,8 @@ Equipamentos podem ser movidos por arraste até uma U, por botões de uma U ou p
 - [x] **Planta 2D (etapas 11–14):** desenho, setores, importação de fundos privados PNG/JPG/PDF, escala/calibração, posicionamento, transformações e salvamento com revisão; API/banco, reinício e navegador local validados.
 - [x] **Busca e navegação (etapa 15):** filtros, lista equivalente, foco/localização e consulta de conexões nos dois sentidos; IDs/filiações/autorização e URLs persistentes, incluindo dois datacenters por unidade e objetos sem posição/planta, validados em API/banco e navegador local.
 - [x] **Consulta móvel e QR (etapas 16/17):** visualizador completo em tela compacta e página pública restrita à mesa; etiquetas locais. Navegador/viewport e gestos emulados validados; aparelho físico e produção não verificados.
-- [ ] **Validação e identidade:** fluxo manual completo, testes de acesso e integridade, persistência após reinício e verificação real em navegador de computador/celular; aplicação da identidade Microgate.
+- [x] **Identidade Microgate (etapa 18):** tokens HTML/Konva, logos fornecidas, grafite/azul claro, contraste/foco e estados; navegador em computador/viewports móveis e QR/print simulados validados.
+- [ ] **Validação integrada (etapa 19):** fluxo completo, escala prevista e persistência após reinício; provas de acesso/integridade consolidadas.
 - [ ] **Preparação de produção:** build, Compose de produção, backup/restauração e instruções para domínio/HTTPS. Publicação depende do ambiente a ser informado.
 
 ## 9. Verificação proporcional

@@ -1,6 +1,6 @@
 # Topologia New
 
-Projeto independente para documentar plantas, mesas, datacenters, racks e conexões de várias empresas. Etapas 01 a 17 concluídas: ambiente Docker, autenticação/acessos, cadastros e conexões, editor 2D/fundos calibrados, busca, consulta completa em tela compacta e consulta pública restrita à mesa com etiqueta QR. Novas instalações começam com o parque vazio; o primeiro administrador é criado explicitamente pelo usuário, sem senha padrão.
+Projeto independente para documentar plantas, mesas, datacenters, racks e conexões de várias empresas. Etapas 01 a 18 concluídas: ambiente Docker, autenticação/acessos, cadastros e conexões, editor 2D/fundos calibrados, busca, consulta completa em tela compacta e consulta pública restrita à mesa com etiqueta QR, com identidade visual Microgate e logos fornecidas. Novas instalações começam com o parque vazio; o primeiro administrador é criado explicitamente pelo usuário, sem senha padrão.
 
 - [Escopo](docs/ESCOPO.md)
 - [Arquitetura](docs/IMPLEMENTACAO.md)
@@ -254,7 +254,7 @@ Até 900 CSS px, a interface oferece consulta: busca recolhível, hierarquia com
 
 Validado em Chromium real nos viewports 360, 375, 390 e 768 px, horizontal 844×390 e computador 1280×900, com toque emulado. Não houve teste em celular físico ou produção. [Roteiro, evidências e limites](docs/CONSULTA_CELULAR.md); `npm run test:touch` verifica a matemática dos gestos.
 
-A próxima etapa é **18 — Identidade visual Microgate**, pendente e não iniciada; logos serão fornecidos posteriormente. Validação integrada, operação de produção e publicação permanecem nas etapas 19–21.
+Identidade visual aplicada na **etapa 18**, conforme [IDENTIDADE_VISUAL.md](docs/IDENTIDADE_VISUAL.md), com logos fornecidas em `docs/logos/`. A próxima etapa é **19 — Validação integrada e escala**, pendente. Operação de produção e publicação permanecem nas etapas 20–21.
 
 QA opcional da planta: `apps/api/test/browser-server.ts --stage13` mantém o padrão de banco temporário e provisionamento sintético explícito. `QA_ORIGIN` permite configurar uma origem alternativa (usado `http://localhost:5174` na etapa 13); o proxy web temporário aponta para `http://api:3002`, sem expor a API no host. Encerrar o servidor por SIGTERM/stdin remove banco e credencial temporária; encerre também o web de QA e remova seus arquivos de autenticação. Consulte as evidências e os limites em [PROGRESSO.md](docs/PROGRESSO.md#etapa-13--paredes-portas-janelas-e-setores).
 
@@ -263,3 +263,5 @@ Na etapa 13, encurtar uma parede é recusado se alguma abertura deixar de caber;
 Atualização do esquema: execute `npm run db:migrate` para aplicar a migração aditiva `005_sector_editing.sql`, que preserva registros e volumes, permite troca atômica dos nomes dos setores e inclui renomeações na revisão da planta. Não edite migrações já aplicadas.
 
 Na etapa 14, **Fundo da planta** importa PNG/JPG/PDF até 20 MiB e permite escolher a página pela prévia do PDF.js. Ajuste centro/dimensões/rotação/opacidade ou marque dois pontos e informe a distância real para calibrar; finalize com **Salvar layout**. Trocar/calibrar o fundo preserva a geometria de mesas/racks e as conexões. Original e PNG renderizado são privados, persistentes no volume `plant_files`; um visualizador pode consultar/baixar, sem escrever. Dependências novas exigem `npm run dev:install`; aplique `006_plan_files.sql` com `npm run db:migrate`. Limites, retenção, testes e QA isolado: [FUNDOS.md](docs/FUNDOS.md).
+
+QA visual opcional: `apps/api/test/browser-server.ts --stage18` reutiliza as fixtures isoladas da consulta móvel, com 48 portas e QR. A web temporária deve usar proxy `http://api:3002` e porta de host vinculada ao loopback. Encerrar por SIGTERM/stdin remove banco e `runtime.json`; remover também a web temporária. Não executar fixtures no banco de trabalho.

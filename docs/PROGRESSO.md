@@ -2,9 +2,48 @@
 
 Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Git. Capturas, logs e relatórios permanecem disponíveis na máquina onde foram gerados; os resultados das verificações continuam registrados neste documento. Os caminhos abaixo são referências locais e não acompanham novas cópias do repositório.
 
-Atualizado em 02/10/2026 (America/Sao_Paulo), após implementação e validação da etapa 17.
+Atualizado em 02/10/2026 (America/Sao_Paulo), após implementação e validação da etapa 18.
 
-**Estado atual:** etapas 01 a 17 concluídas. Ambiente local saudável em [localhost:5173](http://localhost:5173), com consulta autenticada completa em tela compacta e QR restrito à mesa. Dados de trabalho preservados; QA sintético em bancos separados, removidos ao terminar. Etapas 18 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
+**Estado atual:** etapas 01 a 18 concluídas. Ambiente local saudável em [localhost:5173](http://localhost:5173), com identidade Microgate, logos fornecidas, consulta compacta e QR restrito à mesa. Dados de trabalho preservados; QA sintético em banco separado, removido ao terminar. Etapas 19 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
+
+## Etapa 18 — Identidade visual Microgate
+
+**Situação: Concluída em 02/10/2026.** Somente a etapa 18. Próxima: **19 — Validação integrada e escala**, pendente. Sem commit, push ou publicação. Assets fornecidos em `docs/logos/` preservados.
+
+### Entrega
+
+- `tokens.css`, `style.css`, `theme.ts`: fonte única de cores para HTML e Konva; grafite, textos claros, azul claro do CSS oficial Microgate, tipografia local, escala de espaçamentos e estados. Navegação, administração, formulários, seleção, avisos/erros, planta e rack coerentes. Sem novas dependências ou migrações.
+- `Brand.tsx`, `App.tsx`, `PublicDesk.tsx`, `index.html`, `public/brand/`: logo horizontal e favicon fornecidos, sem redesenho ou alteração. Fundo fornecido somente no login; marca pública sem link para o parque. QR e etiqueta mantêm papel branco/tinta preta. SHA256 das três cópias coincide com o original; logo vertical preservada na origem. **Pendência de logos: nenhuma.**
+- `PlanCanvas.tsx`: rótulos de paredes/setores e objeto selecionado com tamanho constante na tela e fundo opaco; texto claro, seleção tracejada, alças/transformador em azul. Setores translúcidos conservam a planta importada. Geometria, câmera, gestos, histórico, persistência e arquivos permanecem no contrato existente.
+- `RackFront.tsx`: legenda textual Livre/Ocupada e número sublinhado na porta ocupada; estados acessíveis, lista com nomes completos e controles independentes preservados. CSS reserva espaço para foco nas portas; nenhuma ferramenta essencial retirada.
+- QA opcional `browser-server.ts --stage18`, reutilizando fixtures isoladas da etapa 17. README, plano, IMPLEMENTACAO e [IDENTIDADE_VISUAL.md](IDENTIDADE_VISUAL.md) atualizados. Site oficial e CSS consultados nesta execução; skills `ui-ux-pro-max`, `frontend-design`, `playwright` e `topologia-stage-validation` aplicadas. Sugestões comerciais/glassmorphism da skill não substituíram a referência fornecida.
+
+### Verificações
+
+| Categoria | Procedimento | Resultado |
+|---|---|---|
+| Typecheck/build | `npm run typecheck`; `npm run build`, após código final | Aprovados em domínio, API/testes e web; editor permanece em chunk separado. |
+| Regressões do cliente | `test:layout-editor`; `test:navigation`; `test:touch`; `test:qr` | **6/6 + 4/4 + 3/3 + 2/2**: histórico/fundo/reconciliação, URLs/contexto, gestos e codificação QR. |
+| API/PostgreSQL | `test:connections`; `test:public` | **13/13 + 11/11**: relações únicas, concorrência, transferência/estado esperado, autorização e DTO/gestão públicos preservados. |
+| Navegador real — consulta | Chromium/Playwright CLI: **360×800, 375×812, 390×844, 768×1024, 844×390, 1280×900** | Hierarquia → planta/mesa/ponto → destino → porta 48/lista → rack/planta → origem → busca → ponto → recarga. Visualizador sem controles de edição. |
+| Responsivo/alvos | 30 medições da hierarquia/planta, mesa, rack/portas, rack/planta e busca | Sem overflow horizontal do documento; alvos de consulta ≥44×44 CSS px, com alternativa pela lista para portas gráficas pequenas. Rolagem do rack permanece interna. |
+| Contraste/estados/foco | Cores computadas no login, administração, busca, mesa, rack, QR e etiqueta; Tab/Enter em portas; screenshots inspecionados | Nenhuma falha nas combinações conferidas; mínimo de texto **6,61:1**. Mesa/rack no canvas **10,34:1 / 11,56:1**; rótulos **16,96:1**. Porta ocupada com nome/destino, sublinhado e legenda; livre com texto; Tab move o foco e Enter consulta a porta. Rótulos selecionados legíveis mesmo com zoom reduzido. Prova proporcional, sem certificação completa de acessibilidade. |
+| Estados de consulta | Busca vazia/carregando/503 simulado; hierarquia vazia; QR inválido | Estados legíveis e ações preservadas. 503 foi interceptação para apresentação; não falha real de infraestrutura. Recarga/back/forward mantiveram contexto. |
+| Toque emulado | CDP `Input.dispatchTouchEvent`, pan/pinça e botões | Zoom **134% → 269%**, pan altera a imagem; layout/revisão **4 idênticos** antes/depois da consulta. |
+| Edição no computador | Gerente: campo X, aplicar, salvar, reload; rascunho e resize | X **3 → 3,25** persistiu; rascunho X **4** preservado em 1280→768→1280; desfazer restaurou 3,25. Consulta compacta continua sem ferramentas de edição; elas reaparecem no computador. Exclusivamente QA. |
+| Autorização direta | PUT válido de layout por viewer em 360/1280; PATCH por gerente em 768 | **403 / 403 / 200**: viewport não altera o papel aplicado na API. |
+| QR público — sessão separada | Seis viewports, oito pontos/destinos, recarga, cookies e chamadas | Zero cookies/navegação interna/chamadas privadas; associado/não associado e logo fornecida legíveis; sem overflow. |
+| Etiqueta/QR | Screenshot real do bitmap e decodificação independente por jsQR; media `print` | URL/token correspondem à consulta de QA. Etiqueta preta/branca; impressão simulada contém somente etiqueta. Sem impressão física ou câmera/scanner. |
+| Preservação/limpeza | Comparar contagens/MD5 antes/depois; encerrar QA e consultar catálogo | **18 tabelas de trabalho idênticas**, incluindo usuários/sessões/cadastros/layout/links públicos. Banco `topologia_new_test18_browser_4d28fe770c5e`, runtime e web QA removidos; `temporaryDatabases: []`, `runtimeExists: false`. Volumes preservados. |
+| Operação/whitespace | `npm run dev:all`, Compose/health e `git diff --check` | Serviços principais saudáveis; web somente `127.0.0.1:5173`, health/database up; whitespace aprovado. |
+
+Total: **39 testes automatizados aprovados**, além dos fluxos e medições no navegador. Não foram identificadas exceções JavaScript da aplicação nos fluxos finais; 401 da entrada sem sessão e 403/404/503 dos cenários são esperados. O harness foi ajustado para aguardar navegação assíncrona, medir cores hex corretamente, distinguir controles repetidos e estabilizar foco após renderização; os resultados finais estão nos logs, sem mudanças funcionais para acomodar o teste.
+
+Evidências locais em `docs/evidencias/etapa18/`: `typecheck.txt`, `build.txt`, `layout-editor.txt`, `navegacao.txt`, `toque.txt`, `qr.txt`, `conexoes.txt`, `publico.txt`, `fluxos.txt`, `gestos.txt`, `estados-acesso.txt`, `desktop.txt`, `contraste-{login,admin,busca,foco,foco-final}.txt`, `planta-final.txt`, `qr-publico.txt`, `etiqueta.txt`, `qr-decodificado.json`, `resumo-visual.json`, `banco-preservado.json`, `cleanup.json`, `console.txt`, `diff-check.txt` e screenshots `login-*`, `admin-desktop.png`, `planta-*`, `mesa-*`, `rack-*`, `portas-*`, `porta-foco-*`, `porta-selecao-*`, `busca-*`, `qr-publico-*`, `qr-erro-390.png`, `gesto-*`, `edicao-desktop.png`, `gerente-consulta-768.png`, `etiqueta-tela.png`, `etiqueta-impressao.png`. Capturas/logs ignorados pelo Git; não acompanham um clone novo. Scripts locais em `output/playwright/etapa18/`.
+
+**Limites:** viewports, toque e impressão emulados em Chromium real não substituem celular físico, teclado virtual, Safari/iOS, Chrome/Android físico, câmera/scanner ou impressão física. Não houve produção/publicação. Fonte Inter não foi fornecida; a cadeia local de fontes evita dependência de CDN. Escala/validação integrada permanecem na etapa 19.
+
+Para validar: abra [localhost:5173](http://localhost:5173), entre com a conta existente e consulte planta, mesa/pontos e rack/portas. Use Tab para percorrer controles; abra um QR ativado e confira a etiqueta. Contratos em [IDENTIDADE_VISUAL.md](IDENTIDADE_VISUAL.md), [CONSULTA_CELULAR.md](CONSULTA_CELULAR.md) e [QR_PUBLICO.md](QR_PUBLICO.md). `topologia_new`, `topologia_new_web` e `topologia_new_db` continuam em execução; `npm run dev:stop` para parar preservando volumes e `npm run dev:all` para subir. **Pendências essenciais da etapa 18: nenhuma. Próxima: etapa 19**, somente mediante solicitação.
 
 ## Etapa 17 — Consulta completa no celular
 

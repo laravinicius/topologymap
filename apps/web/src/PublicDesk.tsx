@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { publicTokenPattern, type PublicDesk as Desk } from '@topologia-new/domain';
+import { Brand } from './Brand';
 
 /** Entrada pública isolada: sem App, sessão, snapshot, navegação ou links internos. */
 export function PublicDesk() {
@@ -31,6 +32,7 @@ export function PublicDesk() {
     return () => { generation.current++; controller.abort(); clearInterval(interval); window.removeEventListener('focus', focus); robots.remove(); };
   }, [token]);
   return <main className="public-desk">
+    <Brand />
     <p className="eyebrow">Consulta da mesa</p>
     {loading && <section className="panel" role="status">Carregando mesa…</section>}
     {error && <section className="panel"><h1>Mesa indisponível</h1><p role="alert" className="error">{error}</p>
@@ -38,7 +40,7 @@ export function PublicDesk() {
     {desk && <><h1>{desk.name}</h1><p>{desk.points.length} pontos</p>
       {!desk.points.length && <section className="panel">Esta mesa ainda não possui pontos.</section>}
       <ul className="public-points">{desk.points.map((point, index) => <li className="panel" key={index}>
-        <h2>{point.name}</h2><span className="badge">{point.destination ? 'Associado' : 'Não associado'}</span>
+        <h2>{point.name}</h2><span className={`badge ${point.destination ? 'online' : ''}`}>{point.destination ? 'Associado' : 'Não associado'}</span>
         {point.destination ? <dl>{(['datacenter', 'rack', 'patchPanel', 'port'] as const).map(key => <div key={key}>
           <dt>{{ datacenter: 'Datacenter', rack: 'Rack', patchPanel: 'Patch panel', port: 'Porta' }[key]}</dt><dd>{point.destination![key]}</dd>
         </div>)}</dl> : <p>Sem destino associado.</p>}

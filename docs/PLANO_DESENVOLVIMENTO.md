@@ -4,7 +4,7 @@ Projeto: Topologia New. Elaborado em 30/09/2026.
 
 **Estado inicial:** documentação criada; aplicação, banco e containers ainda não implementados. Todas as etapas abaixo começam pendentes.
 
-**Estado atual (02/10/2026):** etapas 01 a 17 concluídas. A etapa 17 entrega consulta autenticada completa em tela compacta, navegação/listas/detalhes e gestos de planta, preservando a edição no computador e o QR restrito à mesa; contrato em [CONSULTA_CELULAR.md](CONSULTA_CELULAR.md) e [QR_PUBLICO.md](QR_PUBLICO.md), evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 18 a 21 permanecem pendentes. Prova em Chromium real com viewports e toque emulado, sem celular físico ou produção. Cadastros existentes e implementações anteriores preservados; novas instalações usam provisionamento explícito conforme o README.
+**Estado atual (02/10/2026):** etapas 01 a 18 concluídas. Identidade Microgate aplicada a navegação, formulários, planta, racks e QR, com tokens compartilhados, logos fornecidas e estados acessíveis. Contratos em [IDENTIDADE_VISUAL.md](IDENTIDADE_VISUAL.md), [CONSULTA_CELULAR.md](CONSULTA_CELULAR.md) e [QR_PUBLICO.md](QR_PUBLICO.md); evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 19 a 21 permanecem pendentes. Prova em Chromium real, viewports/toque e impressão emulados, sem celular físico ou produção. Dados de trabalho preservados; novas instalações usam provisionamento explícito conforme o README.
 
 Este documento transforma [ESCOPO.md](ESCOPO.md) e [IMPLEMENTACAO.md](IMPLEMENTACAO.md) em tarefas executáveis, em ordem, com solicitações prontas para copiar para o agente.
 
@@ -88,7 +88,7 @@ Usar os estados `Pendente`, `Em andamento`, `Concluída` e `Bloqueada`. Marcar b
 | 15 | Busca e navegação entre planta, mesa e rack | 14 | Concluída |
 | 16 | Página pública e etiquetas QR Code | 15 | Concluída |
 | 17 | Consulta completa no celular | 16 | Concluída |
-| 18 | Identidade visual Microgate | 17 | Pendente |
+| 18 | Identidade visual Microgate | 17 | Concluída |
 | 19 | Validação integrada e da escala prevista | 18 | Pendente |
 | 20 | Build de produção, backup e restauração | 19 | Pendente |
 | 21 | Publicação e validação no ambiente definitivo | 20 + ambiente informado | Pendente |

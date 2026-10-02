@@ -9,6 +9,7 @@ export function RackFront({ rack, writable, selectedPort, onSelectPort, onMove, 
   return <section className="rack-front-section" aria-label={`Vista frontal do rack ${rack.name}`}>
     <div className="panel-header"><div><h4>Vista frontal · {rack.capacityU} U</h4><p className="intro">U mais altas no topo; cada faixa representa uma unidade.</p></div></div>
     <button className="secondary" onClick={() => document.getElementById('rack-equipment-list')?.scrollIntoView({ block: 'start' })}>Consultar equipamentos e portas pela lista</button>
+    <p className="rack-port-legend"><span className="badge free-port">Livre · número</span> <span className="badge occupied-port">Ocupada · número sublinhado</span></p>
     <div className="rack-front-scroll">
       <div className="rack-front" style={{ '--rack-units': rack.capacityU } as React.CSSProperties}>
         <div className="rack-u-labels" aria-hidden="true">{Array.from({ length: rack.capacityU }, (_, index) => <span key={index}>{rack.capacityU - index}</span>)}</div>
