@@ -31,6 +31,7 @@ export function removeDrawingItem(layout: PlanLayout, id: string): PlanLayout {
 export function drawingBounds(layout: PlanLayout): Rectangle[] {
   const points = [...layout.geometry.walls.flatMap(w => [w.start,w.end]), ...layout.sectors.flatMap(s => s.polygon)];
   return [...layout.desks.map(d => d.placement), ...layout.racks.flatMap(r => r.placement ? [r.placement] : []),
+    ...(layout.geometry.background ? [layout.geometry.background.placement] : []),
     ...points.map(p => ({ ...p, width: .2, height: .2, rotation: 0 }))];
 }
 

@@ -18,13 +18,17 @@
     "test:racks": "tsx --test --test-concurrency=1 test/racks.test.ts",
     "test:connections": "tsx --test --test-concurrency=1 test/connections.test.ts",
     "test:layout": "tsx --test --test-concurrency=1 test/layout.test.ts",
+    "test:files": "tsx --test --test-concurrency=1 test/files.test.ts",
     "admin:create": "tsx src/auth/admin-cli.ts"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",
+    "@napi-rs/canvas": "1.0.10",
     "@topologia-new/domain": "0.1.0",
     "fastify": "5.12.5",
-    "pg": "8.23.1"
+    "pdfjs-dist": "6.3.289",
+    "pg": "8.23.1",
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@types/node": "24.19.0",

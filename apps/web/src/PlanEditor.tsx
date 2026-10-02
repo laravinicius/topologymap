@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { isPlanLayout, isRectangle, type DeskSummary, type LayoutCamera, type ParkSnapshot, type PlanLayout, type RackSummary, type Rectangle } from '@topologia-new/domain';
+import { isPlanLayout, isRectangle, type DeskSummary, type LayoutCamera, type ParkSnapshot, type PlanLayout, type PlanBackground, type RackSummary, type Rectangle } from '@topologia-new/domain';
 import { api, ApiError, json, message } from './api';
 import { PlanCanvas, type CanvasObject } from './PlanCanvas';
 import { ArchitecturePanel } from './ArchitecturePanel';
+import { BackgroundPanel } from './BackgroundPanel';
+import { worldToSource } from './background';
 import { applyDrawing, drawing, drawingBounds, fitCamera, normalizeRotation, reconcile, same, type Drawing } from './layoutEditor';
 
 type Snapshot = { revision: number; layout: PlanLayout };
@@ -25,7 +27,7 @@ export function PlanEditor({ park, planId, unitId, floorId, writable, refresh, c
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [conflict, setConflict] = useState(false);
   const [pan, setPan] = useState(false), [grid, setGrid] = useState(true), [snap, setSnap] = useState(true), [width, setWidth] = useState(600);
   const [rackId, setRackId] = useState('');
-  const [tool, setTool] = useState<'select' | 'wall' | 'sector' | 'door' | 'window'>('select');
+  const [tool, setTool] = useState<'select' | 'wall' | 'sector' | 'door' | 'window' | 'calibrate'>('select');
   const [vertices, setVertices] = useState<{ x: number; y: number }[]>([]);
   const container = useRef<HTMLDivElement>(null), generation = useRef(0), writing = useRef(false), catalogGeneration = useRef(0);
   const live = useRef({ writable, draft, baseline, busy }); live.current = { writable, draft, baseline, busy };
@@ -54,7 +56,7 @@ export function PlanEditor({ park, planId, unitId, floorId, writable, refresh, c
   }
   async function load(mode: 'replace' | 'reconcile' = 'replace') {
     if (writing.current) return;
-    if (mode === 'reconcile' && !window.confirm('Reconciliar somente posições de mesas/racks? Alterações locais de paredes, aberturas, setores e associações serão descartadas em favor da revisão atual.')) return;
+    if (mode === 'reconcile' && !window.confirm('Reconciliar somente posições de mesas/racks? Alterações locais de paredes, aberturas, setores, fundo e associações serão descartadas em favor da revisão atual.')) return;
     const current = live.current;
     if (mode === 'replace' && current.draft && current.baseline && (!same(drawing(current.draft), drawing(current.baseline.layout)) || (current.writable && !same(current.draft, current.baseline.layout)))
       && !window.confirm('Recarregar a planta e descartar as alterações locais?')) return;
@@ -145,6 +147,12 @@ export function PlanEditor({ park, planId, unitId, floorId, writable, refresh, c
   }
   function drawPoint(point: { x: number; y: number }, wallId?: string) {
     if (!editable || !draft || pan || tool === 'select') return;
+    if (tool === 'calibrate') {
+      const b = draft.geometry.background; if (!b) return;
+      const p = worldToSource(b,point);
+      if (p.x < 0 || p.y < 0 || p.x > b.sourceWidthPx || p.y > b.sourceHeightPx) { setError('Marque pontos dentro do fundo.'); return; }
+      setVertices(old => old.length >= 2 ? [point] : [...old,point]); setError(''); return;
+    }
     const next = structuredClone(draft), id = crypto.randomUUID();
     if (tool === 'wall') {
       if (!vertices.length) { setVertices([point]); return; }
@@ -196,6 +204,25 @@ export function PlanEditor({ park, planId, unitId, floorId, writable, refresh, c
     } catch (e) { if (number === generation.current) await handleError(e); }
     finally { if (number === generation.current) { writing.current = false; setBusy(false); } }
   }
+  async function importBackground(file: File, page: number | null) {
+    if (!editable || !draft || writing.current) return false;
+    writing.current = true; setBusy(true); setError(''); setNotice('');
+    const number = generation.current;
+    try {
+      const result = await api<{ background: PlanBackground }>(`${base}/plans/${planId}/backgrounds${page ? `?page=${page}` : ''}`, {
+        method: 'POST', headers: { 'Content-Type': file.type }, body: file, signal: AbortSignal.timeout(45000),
+      });
+      if (number !== generation.current) return false;
+      const next = structuredClone(draft); next.geometry.background = result.background;
+      writing.current = false; commit(next); setVertices([]); setTool('select');
+      setDraft({ ...next, camera: fitCamera(drawingBounds(next),width,480) });
+      setNotice('Fundo importado. Ajuste alinhamento/escala e use Salvar layout para gravar a troca.'); return true;
+    } catch (e) { if (number === generation.current) {
+      if (e instanceof ApiError && e.status === 409) setError(e.message);
+      else await handleError(e);
+    } return false; }
+    finally { if (number === generation.current) { writing.current = false; setBusy(false); } }
+  }
   async function attachRack() {
     if (!editable || !baseline || dirty || !rackId || writing.current) return;
     writing.current = true; setBusy(true); setError('');
@@ -244,14 +271,17 @@ export function PlanEditor({ park, planId, unitId, floorId, writable, refresh, c
         {tool === 'sector' && <button disabled={!editable || vertices.length < 3} onClick={finishSector}>Concluir setor ({vertices.length} vértices)</button>}
         {(tool !== 'select' || vertices.length > 0) && <button className="secondary" onClick={() => { setTool('select'); setVertices([]); }}>Cancelar desenho</button>}
       </div>}
-      {tool !== 'select' && <p role="status">{tool === 'wall' ? 'Clique no início e no fim da parede.' : tool === 'sector' ? 'Clique nos vértices em ordem e use Concluir setor. Não repita o primeiro vértice.' : 'Clique na parede para inserir a abertura.'}</p>}
+      {tool !== 'select' && <p role="status">{tool === 'calibrate' ? `Clique em dois pontos no fundo (${vertices.length}/2) e informe a distância real abaixo.` : tool === 'wall' ? 'Clique no início e no fim da parede.' : tool === 'sector' ? 'Clique nos vértices em ordem e use Concluir setor. Não repita o primeiro vértice.' : 'Clique na parede para inserir a abertura.'}</p>}
       <div className="plan-canvas" ref={container} role="img" aria-label="Desenho da planta; lista equivalente e propriedades abaixo">
         <PlanCanvas width={width} height={480} objects={objects} camera={draft.camera} selected={selected} editable={editable && tool === 'select'} interactive={!busy}
-          layout={draft} tool={tool} vertices={vertices} drawPoint={drawPoint} editDrawing={commit}
+          layout={draft} tool={tool} vertices={vertices} drawPoint={drawPoint} editDrawing={commit} backgroundError={setError}
+          backgroundUrl={draft.geometry.background ? `/api${base}/plans/${planId}/files/${draft.geometry.background.renderedFileId}` : undefined}
           pan={pan} grid={grid} snap={snap} select={setSelected} change={update} setCamera={camera} />
       </div>
       <p className="intro">Roda do mouse: zoom no cursor. Mover câmera: arraste a área. {writable ? 'Selecione um objeto para arrastar, dimensionar e girar pelas alças ou pelos campos.' : 'Visualização — somente consulta. A câmera pode ser ajustada localmente.'}</p>
       {!objects.length && <p className="empty-state">Cadastre mesas abaixo ou vincule um rack já cadastrado na unidade.</p>}
+      <BackgroundPanel key={path} layout={draft} editable={editable} writable={writable} fileBase={`/api${base}/plans/${planId}/files`} importFile={importBackground} change={commit}
+        points={tool === 'calibrate' ? vertices : []} pick={() => { setTool('calibrate'); setPan(false); setVertices([]); }} cancel={() => { setTool('select'); setVertices([]); }} />
       <ArchitecturePanel layout={draft} selected={selected} select={setSelected} editable={editable} writable={writable} change={commit} />
       <div className="plan-details">
         <div><h4>Objetos cadastrados na planta</h4><ul className="plan-object-list">{objects.map(item => <li key={item.id}><button className="secondary" aria-pressed={selected === item.id} onClick={() => setSelected(item.id)}>

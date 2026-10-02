@@ -2,9 +2,47 @@
 
 Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Git. Capturas, logs e relatórios permanecem disponíveis na máquina onde foram gerados; os resultados das verificações continuam registrados neste documento. Os caminhos abaixo são referências locais e não acompanham novas cópias do repositório.
 
-Atualizado em 02/10/2026 (America/Sao_Paulo), após implementação e validação da etapa 13.
+Atualizado em 02/10/2026 (America/Sao_Paulo), após implementação e validação da etapa 14.
 
-**Estado atual:** etapas 01 a 13 concluídas. Ambiente local saudável, autenticação, administração global, autorização por empresa, hierarquia, mesas/pontos, racks/equipamentos/portas, conexões pelas duas extremidades, persistência versionada e editor Konva com paredes, aberturas, setores nomeados e relações mesa-setor disponíveis. Dados de trabalho preservados; QA sintético somente em bancos separados. Etapas 14 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
+**Estado atual:** etapas 01 a 14 concluídas. Ambiente local saudável em [localhost:5173](http://localhost:5173), com fundos PNG/JPG/PDF privados e persistentes, seleção de página pelo PDF.js, alinhamento, opacidade e calibração, integrados ao editor e ao salvamento versionado. Dados de trabalho preservados; QA sintético somente em bancos separados, removidos ao terminar. Etapas 15 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
+
+## Etapa 14 — Importação de plantas e calibração de escala
+
+**Situação: Concluída.** Entrega limitada à etapa 14. Próxima: **15 — Busca e navegação entre planta, mesa e rack**, pendente e não iniciada.
+
+### Entrega
+
+Migração aditiva `006_plan_files.sql` com metadados, FKs compostas e validação das referências do fundo. Rotas em `apps/api/src/files/` para upload binário privado, decodificação/normalização de PNG/JPG com Sharp e renderização de página PDF com PDF.js/canvas, em worker com limites. Original e renderizado usam UUIDs internos no volume `plant_files`; download exige sessão e acesso atual à empresa/planta e confere bytes/SHA-256. O PUT do layout valida IDs, página e resolução, mantendo a proteção de revisão.
+
+`BackgroundPanel.tsx`, `PdfPreview.tsx`, `background.ts`, `PlanCanvas.tsx` e `PlanEditor.tsx` entregam prévia/seleção de página, troca/remoção, downloads, centro/dimensões/rotação, opacidade e calibração por dois cliques ou coordenadas em pixels com distância real. A calibração mantém o primeiro ponto no lugar e transforma exclusivamente o fundo. Histórico de desfazer/refazer inclui o fundo; pontos, conexões e posições canônicas permanecem independentes. Fontes/CMaps/WASM são locais; PDF.js é carregado somente quando necessário.
+
+Limites, API, retenção e comandos em [FUNDOS.md](FUNDOS.md). Versões fixadas e verificadas no npm: PDF.js **6.3.289**, Sharp **0.35.5**, canvas **1.0.10**.
+
+### Verificações
+
+| Categoria | Procedimento | Resultado |
+|---|---|---|
+| Typecheck/build | `npm run typecheck`, `npm run build`, equivalentes via `docker compose exec -T api` | Aprovados no Windows e Linux. Worker compilado executado diretamente pelo Node: página 2 renderizada em 600 × 450 px; prévia e worker PDF.js separados no build web. |
+| Migração no volume existente | `npm run db:status`, `npm run db:migrate` | 001–005 já aplicadas; 006 aplicada explicitamente sem reset ou dados sintéticos no banco de trabalho. |
+| Instalação/upgrade real | `npm run test:db` | **38/38**; banco novo, reaplicação e upgrade **005 → 006** com parque, geometria e conexão preservados e esquema equivalente. |
+| API/banco/arquivos | `npm run test:files` | **10/10**; PNG/JPG, original idêntico, PDF com duas páginas distintas, página inexistente/101 páginas, tipo falso, truncamento, 20 MiB, 8192 px/16 milhões de pixels, caminhos, quotas, checksum/symlink. |
+| Autorização/integridade | Mesmo teste, chamadas diretas | Outra empresa/planta: 404; referência cruzada no layout: 400 e SQL: 23514; visualizador lê e recebe 403 ao escrever; revogação com sessão existente: 404; sem sessão: 401. Troca preserva IDs/posições/pontos/conexão; revisão antiga: 409. |
+| Regressão de layout | `npm run test:layout` | **14/14**, conflitos, setores, cadastros, visualizador e preservação de cabeamento. |
+| Domínio/editor | `npm run test:domain`, `npm run test:layout-editor` | **6/6 + 6/6**; calibração com rotação mantém o primeiro ponto, proporção e distância; entradas inválidas recusadas; histórico/reconciliação preservados. |
+| Navegador local | Chromium real/Playwright, banco e web exclusivos em `localhost:5174` | PNG/JPG importados/salvos; página 2 do PDF selecionada/importada; troca desfeita/refeita; alinhamento X=2/Y=3 e rotação 30°; dois cliques com distância de 6 m produziram largura 8 m e opacidade 40%, mantendo mesa de oito pontos. Reload conservou valores. |
+| Visualizador no navegador | Usuário sintético viewer | Fundo e links de download disponíveis; importação e Salvar layout ausentes. |
+| Reinício de containers | Reinício real de API/web de QA e dos serviços Compose; banco saudável antes de iniciar novamente o QA | Snapshot, sessão e SHA-256 do original/renderizado idênticos após reinício/reload. Houve 502 transitório durante a parada; verificações finais após recuperação dos serviços. |
+| Viewport de celular | Chromium 390 × 844 | Controles legíveis e sem overflow horizontal; captura inspecionada. Não equivale a teste em dispositivo físico. |
+| Limpeza | Parada/remoção dos containers QA e `browser-files-server.ts --cleanup` | Banco, subdiretório `qa14_*`, credencial e navegador QA removidos; consulta final `testDatabases: []`, `qaDirectories: []`, zero arquivos de QA no banco de trabalho; volumes preservados. |
+| Produção/dispositivo físico | Não executados | Fora desta etapa. |
+
+Capturas locais inspecionadas: `output/playwright/stage14-png-canvas.png`, `stage14-pdf-canvas.png`, `stage14-jpg-canvas.png`, `stage14-persistence.png`, `stage14-mobile.png` e `stage14-viewer.png`. Scripts/capturas do navegador permanecem ignorados pelo Git; testes reproduzíveis da API/domínio fazem parte do código.
+
+### Ambiente e limites
+
+Permanecem os serviços `topologia_new`, `topologia_new_web` e `topologia_new_db`; web exclusivamente em **127.0.0.1:5173**, API/banco internos. Abra a planta, importe em **Fundo da planta**, escolha a página se PDF, ajuste/calibre e clique em **Salvar layout**. `npm run dev:stop` para sem apagar volumes; `npm run dev:all` espera healthchecks ao subir.
+
+Originais/fundos até 20 MiB; imagens estáticas até 8192 px/16000000 pixels; PDF até 100 páginas/14400 pt por lado; renderização até 4096 px por lado; conversão de 30 s; quota de 100 importações ou 512 MiB por planta. Importações anteriores e uploads não vinculados são retidos para preservar originais/histórico, contando na quota; não há expurgo automático. Arquivos impedem exclusão física da planta por dependência RESTRICT. Não há OCR/CAD, suporte a PDF protegido por senha, acesso público aos arquivos ou publicação em produção. Não há pendência essencial da etapa 14.
 
 ## Etapa 01 — Workspace e Docker local
 

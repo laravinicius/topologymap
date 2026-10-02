@@ -62,10 +62,12 @@ export function registerLayout(app: FastifyInstance, pool: pg.Pool) {
       const currentRevision = parseRevision(plan.rows[0]!.revision);
       if (currentRevision !== request.body.expectedRevision) throw new HttpError(409, 'O layout foi alterado desde a leitura. Atualize antes de salvar.');
       const background = request.body.layout.geometry.background;
-      const existingBackground = plan.rows[0]!.geometry.background;
-      if (background && (!existingBackground || background.originalFileId !== existingBackground.originalFileId
-        || background.renderedFileId !== existingBackground.renderedFileId))
-        throw new HttpError(400, 'Novas referências de arquivos de fundo exigem a importação e validação de arquivos da etapa 14.');
+      if (background && !(await client.query(`SELECT r.id FROM plan_files r JOIN plan_files o ON o.id=r.original_id
+        WHERE r.company_id=$1 AND r.plan_id=$2 AND r.kind='rendered' AND o.kind='original'
+          AND o.company_id=$1 AND o.plan_id=$2 AND o.id::text=lower($3) AND r.id::text=lower($4)
+          AND r.page IS NOT DISTINCT FROM $5::integer AND r.width=$6 AND r.height=$7`,
+      [request.company!.id,request.params.planId,background.originalFileId,background.renderedFileId,background.page,background.sourceWidthPx,background.sourceHeightPx])).rowCount)
+        throw new HttpError(400, 'Referências de fundo inválidas: importe o arquivo nesta planta e preserve página e resolução.');
       // O cadastro bloqueia primeiro o objeto e depois avança a revisão da planta.
       // Não aguardar seus locks na ordem inversa: rejeitar o conflito sem deadlock.
       const idSets = [];

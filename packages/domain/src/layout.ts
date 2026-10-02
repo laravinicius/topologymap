@@ -40,7 +40,7 @@ export function isPlanLayout(value: unknown): value is PlanLayout {
     || !value.geometry.walls.every(wall => fields(wall, ['id', 'start', 'end', 'thickness']) && positionFields(wall.start) && positionFields(wall.end))
     || !value.geometry.openings.every(opening => fields(opening, ['id', 'kind', 'wallId', 'offset', 'width']))) return false;
   const background = value.geometry.background;
-  if (background && (!fields(background, ['originalFileId', 'renderedFileId', 'page', 'sourceWidthPx', 'sourceHeightPx', 'placement'])
+  if (background && (!fields(background, ['originalFileId', 'renderedFileId', 'page', 'sourceWidthPx', 'sourceHeightPx', 'placement', 'opacity'])
     || !rectangleFields(background.placement))) return false;
   const valid = uniqueItems(value.desks, (item): item is LayoutDesk => object(item) && fields(item, ['id', 'placement', 'sectorId'])
       && (item.sectorId === undefined || item.sectorId === null || id(item.sectorId))

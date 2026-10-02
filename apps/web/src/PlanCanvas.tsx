@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Konva from 'konva';
-import { Stage, Layer, Group, Rect, Text, Line, Circle, Transformer } from 'react-konva';
+import { Stage, Layer, Group, Rect, Text, Line, Circle, Transformer, Image as KonvaImage } from 'react-konva';
 import type { LayoutCamera, PlanLayout, Position, Rectangle } from '@topologia-new/domain';
 import { normalizeRotation, pixelsPerMeter as ppm, rounded } from './layoutEditor';
 
@@ -48,14 +48,24 @@ function ObjectShape({ item, selected, editable, snap, choose, change }: {
   </>;
 }
 
-export function PlanCanvas({ width, height, camera, objects, selected, editable, interactive, pan, grid, snap, select, change, setCamera, layout, tool, vertices, drawPoint, editDrawing }: {
+export function PlanCanvas({ width, height, camera, objects, selected, editable, interactive, pan, grid, snap, select, change, setCamera, layout, tool, vertices, drawPoint, editDrawing, backgroundUrl, backgroundError }: {
   width: number; height: number; camera: LayoutCamera; objects: CanvasObject[]; selected: string; editable: boolean;
   interactive: boolean; pan: boolean; grid: boolean; snap: boolean; select: (id: string) => void;
   change: (id: string, placement: Rectangle) => void; setCamera: (camera: LayoutCamera) => void;
-  layout: PlanLayout; tool: 'select' | 'wall' | 'sector' | 'door' | 'window'; vertices: Position[];
+  layout: PlanLayout; tool: 'select' | 'wall' | 'sector' | 'door' | 'window' | 'calibrate'; vertices: Position[];
+  backgroundUrl?: string; backgroundError: (message: string) => void;
   drawPoint: (point: Position, wallId?: string) => void; editDrawing: (layout: PlanLayout) => void;
 }) {
   const stage = useRef<Konva.Stage>(null);
+  const [backgroundImage,setBackgroundImage] = useState<HTMLImageElement | undefined>();
+  useEffect(() => {
+    setBackgroundImage(undefined); if (!backgroundUrl) return;
+    let active = true; const image = new window.Image();
+    image.onload = () => { if (active) setBackgroundImage(image); };
+    image.onerror = () => { if (active) backgroundError('Não foi possível ler o fundo privado. Confira sua sessão e o acesso à empresa.'); };
+    image.src = backgroundUrl;
+    return () => { active = false; image.onload = null; image.onerror = null; };
+  },[backgroundUrl,backgroundError]);
   const quantize = (v: number) => rounded(snap ? Math.round(v * 4) / 4 : v);
   const points = (values: Position[]) => values.flatMap(p => [p.x*ppm,p.y*ppm]);
   const choose = (id: string) => { if (tool === 'select') select(id); };
@@ -64,7 +74,8 @@ export function PlanCanvas({ width, height, camera, objects, selected, editable,
     if (tool === 'select') { if (e.target === stage.current) select(''); return; }
     const pointer = stage.current?.getPointerPosition(); if (!pointer) return;
     const wallId = (e.target as Konva.Node).getAttr('wallId') as string | undefined;
-    drawPoint({ x: quantize((pointer.x-camera.x)/camera.zoom/ppm), y: quantize((pointer.y-camera.y)/camera.zoom/ppm) }, wallId);
+    const x = (pointer.x-camera.x)/camera.zoom/ppm, y = (pointer.y-camera.y)/camera.zoom/ppm;
+    drawPoint({ x: tool === 'calibrate' ? x : quantize(x), y: tool === 'calibrate' ? y : quantize(y) }, wallId);
   }
   function handle(point: Position, update: (value: Position) => void, key: string) {
     return <Circle key={key} x={point.x*ppm} y={point.y*ppm} radius={5/camera.zoom} fill="#ffffff" stroke="#1d4ed8" strokeScaleEnabled={false} draggable={editable && !pan}
@@ -89,7 +100,11 @@ export function PlanCanvas({ width, height, camera, objects, selected, editable,
       const zoom = Math.max(.05, Math.min(8, camera.zoom * (e.evt.deltaY < 0 ? 1.15 : 1 / 1.15)));
       setCamera({ zoom, x: pointer.x - (pointer.x - camera.x) / camera.zoom * zoom, y: pointer.y - (pointer.y - camera.y) / camera.zoom * zoom });
     }}>
-    <Layer listening={false}>{lines}</Layer>
+    <Layer listening={false}>{layout.geometry.background && backgroundImage && (() => {
+      const b = layout.geometry.background, r = b.placement;
+      return <KonvaImage image={backgroundImage} x={r.x*ppm} y={r.y*ppm} width={r.width*ppm} height={r.height*ppm}
+        offsetX={r.width*ppm/2} offsetY={r.height*ppm/2} rotation={r.rotation} opacity={b.opacity ?? 1} />;
+    })()}{lines}</Layer>
     <Layer>
       {layout.sectors.map(s => <Group key={s.id} x={0} y={0} draggable={editable && !pan} onClick={() => choose(s.id)} onTap={() => choose(s.id)} onDragStart={() => choose(s.id)}
         onDragEnd={e => { if (e.target !== e.currentTarget) return; const dx = quantize(e.target.x()/ppm), dy = quantize(e.target.y()/ppm); e.target.position({ x: 0, y: 0 });

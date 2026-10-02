@@ -13,6 +13,7 @@ import { registerDesks } from './desks/routes.js';
 import { registerRacks } from './racks/routes.js';
 import { registerConnections } from './connections/routes.js';
 import { registerLayout } from './layout/routes.js';
+import { registerFiles } from './files/routes.js';
 
 declare module 'fastify' {
   interface FastifyRequest { session: AuthSession | null }
@@ -20,7 +21,7 @@ declare module 'fastify' {
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 let dummyHash: Promise<string> | undefined;
 
-export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false) {
+export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false, filesDirectory?: string) {
   const app = Fastify({
     logger: logger ? { redact: ['req.headers.cookie', 'req.headers.authorization', 'req.body.password', 'res.headers.set-cookie'] } : false,
     bodyLimit: 4096,
@@ -173,6 +174,7 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
   registerRacks(app, pool);
   registerConnections(app, pool);
   registerLayout(app, pool);
+  registerFiles(app, pool, filesDirectory);
   app.get('/api/auth/session', { config: { access: 'session' } }, async request => request.session!);
   app.post('/api/auth/logout', async (request, reply) => {
     const token = request.cookies[cookieName];

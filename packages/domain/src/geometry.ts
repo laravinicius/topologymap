@@ -14,6 +14,8 @@ export interface Opening {
 export interface PlanBackground {
   originalFileId: string; renderedFileId: string; page: number | null;
   sourceWidthPx: number; sourceHeightPx: number; placement: Rectangle;
+  /** Ausente em documentos antigos equivale a 1. */
+  opacity?: number;
 }
 export interface PlanGeometry {
   version: 1; unit: 'm'; walls: Wall[]; openings: Opening[];
@@ -89,7 +91,9 @@ export function isPlanGeometry(value: unknown): value is PlanGeometry {
       || !(b.page === null || (Number.isInteger(b.page) && (b.page as number) > 0))
       || !Number.isInteger(b.sourceWidthPx) || !positive(b.sourceWidthPx)
       || !Number.isInteger(b.sourceHeightPx) || !positive(b.sourceHeightPx)
-      || !isRectangle(b.placement)) return false;
+      || (b.opacity !== undefined && (!finite(b.opacity) || b.opacity < 0 || b.opacity > 1))
+      || !isRectangle(b.placement) || Math.abs(b.placement.x) > 1000000 || Math.abs(b.placement.y) > 1000000
+      || Math.min(b.placement.width,b.placement.height) < .001 || Math.max(b.placement.width,b.placement.height) > 10000) return false;
   }
   return true;
 }

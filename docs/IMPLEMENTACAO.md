@@ -129,13 +129,17 @@ O domínio armazenará IDs, posições e dimensões no sistema de coordenadas da
 
 A migração `004_layout_revisions.sql` adiciona a câmera e faz inserção/remoção/mudanças geométricas ou de filiação de mesas, racks e setores avançarem `plans.revision`. Uma gravação com revisão antiga ou conjunto cadastral diferente retorna 409. Após bloquear a planta, o salvamento bloqueia cada objeto com `FOR NO KEY UPDATE NOWAIT`; cadastro já em edição resulta em 409 com rollback, evitando deadlock entre planta e objeto. As consultas no mesmo cliente PostgreSQL são sequenciais. Rack com `placement: null` é gravado como SQL `NULL`.
 
-O documento v1 rejeita campos extras, inclusive em geometria/câmera/formas, para impedir cópias de cadastros e atributos do renderizador. IDs UUID duplicados também são rejeitados quando diferem apenas na capitalização. Introduzir ou trocar IDs de arquivos de fundo retorna 400 enquanto a importação/validação de arquivos da etapa 14 não estiver implementada; fundos preexistentes podem manter referências, mudar transformação ou ser removidos.
+O documento v1 rejeita campos extras, inclusive em geometria/câmera/formas, para impedir cópias de cadastros e atributos do renderizador. IDs UUID duplicados também são rejeitados quando diferem apenas na capitalização. Desde a etapa 14, introduzir/trocar referências de fundo exige arquivos importados da mesma empresa/planta, com página/resolução correspondentes aos metadados; referência inválida retorna 400. Transformação e opacidade são editáveis separadamente dos objetos.
 
 `apps/api/test/layout.test.ts` cobre colisão concorrente da mesma revisão, edição cadastral em curso, dados inválidos, IDs duplicados/cruzados/inexistentes, outra planta da mesma empresa, cadastro alterado/incluído/excluído após leitura, posição ausente do rack, preservação integral das tabelas de cabeamento e papéis/revogação. A suíte de banco testa também upgrade específico 003→004 com layout e conexões preexistentes. Contrato dos corpos e códigos em [GEOMETRIA.md](GEOMETRIA.md).
 
 Geometria de paredes e aberturas deve ser estruturada. Portas e janelas podem referenciar a parede e a posição dentro dela. Setores usam polígonos; mesas e marcadores de rack usam transformação e dimensões. A posição gráfica não substitui a filiação no cadastro.
 
 Importar a planta cria um fundo. Para PDF, selecionar e renderizar uma página, mantendo o original e a imagem gerada em armazenamento do projeto. Registrar o alinhamento e a escala do fundo separadamente dos objetos.
+
+**Etapa 14 implementada:** PDF.js 6.3.289 faz prévia/seleção em worker no navegador; a API renderiza a página escolhida em worker isolado, com canvas 1.0.10. Sharp 0.35.5 valida/decodifica PNG/JPG e aplica orientação EXIF ao PNG normalizado. Fontes/CMaps/WASM são locais, copiados das dependências pelo Vite; PDF.js é carregado sob demanda. A renderização adicional na API valida o conteúdo e produz um fundo canônico sem confiar em pixels/metadados fornecidos pelo cliente.
+
+Arquivos ficam em `FILES_DIR`/volume `plant_files`, com UUIDs gerados no servidor; metadados, SHA-256 e filiação em `plan_files` pela migração aditiva 006. Upload/leitura passam pela autorização atual da empresa; leitura verifica também a planta. PUT de layout e trigger SQL validam o par de arquivos e página/resolução. Arquivos não são públicos nem servidos por caminhos arbitrários. Opacidade opcional preserva compatibilidade (ausente = 1); calibração escala somente o fundo e mantém o primeiro ponto no lugar. Quotas, limites, retenção e procedimentos em [FUNDOS.md](FUNDOS.md); evidências em [PROGRESSO.md](PROGRESSO.md#etapa-14--importação-de-plantas-e-calibração-de-escala). Busca/QR/produção permanecem nas etapas posteriores.
 
 Salvar o layout com número de revisão. Se outra sessão já alterou a revisão, exigir atualização/reconciliação antes de gravar. Indicar alterações pendentes e oferecer desfazer/refazer do layout. Os vínculos de cabeamento usam as operações transacionais da API, separadamente do histórico local de desenho.
 
@@ -246,7 +250,7 @@ Equipamentos podem ser movidos por arraste até uma U, por botões de uma U ou p
 - [x] **Rack frontal 2D e associação pela porta (etapa 10):** U numeradas, equipamentos/portas selecionáveis, lista equivalente, associação/transferência/desvinculação pela porta e posição por arraste, botões e campos; persistência e vínculo inverso validados.
 - [ ] **Cadastros e conexões:** hierarquia completa, criação em lote de pontos/portas, vínculo único e edição pelas duas extremidades.
 - [ ] **Rack 2D:** capacidade em U, equipamentos genéricos, patch panels, seleção de portas e proteção contra sobreposição.
-- [ ] **Planta 2D:** desenho, setores, importação de fundos, escala, posicionamento, transformações e salvamento com revisão.
+- [x] **Planta 2D (etapas 11–14):** desenho, setores, importação de fundos privados PNG/JPG/PDF, escala/calibração, posicionamento, transformações e salvamento com revisão; API/banco, reinício e navegador local validados.
 - [ ] **Consulta e QR:** visualizador completo no celular, busca, lista equivalente e página pública restrita à mesa; geração de etiquetas.
 - [ ] **Validação e identidade:** fluxo manual completo, testes de acesso e integridade, persistência após reinício e verificação real em navegador de computador/celular; aplicação da identidade Microgate.
 - [ ] **Preparação de produção:** build, Compose de produção, backup/restauração e instruções para domínio/HTTPS. Publicação depende do ambiente a ser informado.

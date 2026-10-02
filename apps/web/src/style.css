@@ -126,3 +126,8 @@ h5 { margin: 24px 0 8px; font-size: 1rem; }
   .panel { padding: 20px; }
   button { width: 100%; }
 }
+.background-panel { padding: 1rem; margin-block: 1rem; border: 1px solid #cbd5e1; border-radius: .5rem; }
+.background-panel input[type="file"] { max-width: 100%; }
+.background-panel input[type="range"] { width: min(100%, 24rem); min-height: 44px; }
+.pdf-preview { max-width: 100%; margin-block: 1rem; }
+.pdf-preview canvas { display: block; max-width: 100%; height: auto; border: 1px solid #cbd5e1; margin-top: .5rem; }

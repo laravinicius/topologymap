@@ -4,6 +4,8 @@
 
 `003_login_limits.sql` acrescenta somente janelas de tentativas de login. As chaves usam namespace IP/login e SHA-256, com contador e expiração; upsert atômico na API protege concorrência e reinícios. As duas migrações anteriores permanecem inalteradas. Provisionamento explícito e operação de autenticação estão no [README](../README.md#criar-seu-primeiro-administrador).
 
+`006_plan_files.sql` acrescenta os metadados privados de originais/fundos renderizados, tamanho/SHA-256 e FKs compostas por empresa/planta. Um trigger valida as referências, página, resolução e opacidade ao gravar a geometria. Os bytes ficam no volume `plant_files`, acessíveis somente pela API autorizada. Arquivos são dependências RESTRICT e são retidos ao trocar/remover o fundo. Instalação nova e upgrade 005 → 006 foram testados com dados e conexões preservados. Fluxo e limites em [FUNDOS.md](../docs/FUNDOS.md).
+
 ## Operação
 
 Na raiz, com o Compose ativo: `npm run db:status` e `npm run db:migrate`. Para executar dentro da API: `npm run db:migrate --workspace @topologia-new/api`. O CLI compilado é `node apps/api/dist/database/cli.js apply` ou `status`, usando as variáveis `DATABASE_*`. O diretório `database/migrations` precisa acompanhar o build; já está incluído no Dockerfile da API.

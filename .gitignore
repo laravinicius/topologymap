@@ -1,5 +1,7 @@
 # Dependências e arquivos compilados
 node_modules/
+apps/web/public/pdfjs/
+data/files/
 dist/
 *.tsbuildinfo
 
