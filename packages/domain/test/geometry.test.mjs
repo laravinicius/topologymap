@@ -35,3 +35,17 @@ test('fundo mantém metadados do arquivo separados da transformação em metros'
     assert.equal(isPlanGeometry({ ...emptyPlanGeometry(), background: { ...background, ...patch } }), false);
   }
 });
+
+test('setores rejeitam cruzamentos com área não nula e arestas que se sobrepõem', () => {
+  assert.equal(isPolygon([{x:0,y:0},{x:4,y:3},{x:0,y:3},{x:3,y:0}]), false);
+  assert.equal(isPolygon([{x:0,y:0},{x:4,y:0},{x:2,y:0},{x:2,y:3},{x:0,y:3}]), false);
+  assert.equal(isPolygon([{x:0,y:0},{x:4,y:0},{x:4,y:4},{x:2,y:2},{x:0,y:4}]), true);
+});
+
+test('aberturas não se sobrepõem e podem encostar nas extremidades', () => {
+  const wall = { id:'w',start:{x:0,y:0},end:{x:4,y:0},thickness:.15 };
+  const a = { id:'a',kind:'door',wallId:'w',offset:0,width:1 };
+  const b = { id:'b',kind:'window',wallId:'w',offset:1,width:3 };
+  assert.equal(isPlanGeometry({ ...emptyPlanGeometry(), walls:[wall], openings:[a,b] }), true);
+  assert.equal(isPlanGeometry({ ...emptyPlanGeometry(), walls:[wall], openings:[a,{...b,offset:.5}] }), false);
+});

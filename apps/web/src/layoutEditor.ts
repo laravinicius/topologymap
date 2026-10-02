@@ -7,6 +7,33 @@ export type Placements = Pick<PlanLayout, 'desks' | 'racks'>;
 export const placements = (layout: PlanLayout): Placements => structuredClone({ desks: layout.desks, racks: layout.racks });
 export const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+export type Drawing = Pick<PlanLayout, 'geometry' | 'desks' | 'racks' | 'sectors'>;
+export const drawing = (layout: PlanLayout): Drawing => structuredClone({ geometry: layout.geometry, desks: layout.desks, racks: layout.racks, sectors: layout.sectors });
+/** Histórico do desenho: não inclui câmera, cadastros de mesas ou cabeamento. */
+export function applyDrawing(layout: PlanLayout, value: Drawing): PlanLayout {
+  const next = applyPlacements(layout, value);
+  next.geometry = structuredClone(value.geometry); next.sectors = structuredClone(value.sectors);
+  next.desks = next.desks.map(item => {
+    const old = value.desks.find(d => d.id === item.id);
+    return old ? { ...item, ...(old.sectorId === undefined ? {} : { sectorId: old.sectorId }) } : item;
+  });
+  return next;
+}
+export function removeDrawingItem(layout: PlanLayout, id: string): PlanLayout {
+  const next = structuredClone(layout);
+  next.geometry.walls = next.geometry.walls.filter(item => item.id !== id);
+  next.geometry.openings = next.geometry.openings.filter(item => item.id !== id && item.wallId !== id);
+  next.sectors = next.sectors.filter(item => item.id !== id);
+  next.desks = next.desks.map(item => item.sectorId === id ? { ...item, sectorId: null } : item);
+  return next;
+}
+
+export function drawingBounds(layout: PlanLayout): Rectangle[] {
+  const points = [...layout.geometry.walls.flatMap(w => [w.start,w.end]), ...layout.sectors.flatMap(s => s.polygon)];
+  return [...layout.desks.map(d => d.placement), ...layout.racks.flatMap(r => r.placement ? [r.placement] : []),
+    ...points.map(p => ({ ...p, width: .2, height: .2, rotation: 0 }))];
+}
+
 /** Só aplica posições a membros existentes; histórico nunca insere um cadastro. */
 export function applyPlacements(layout: PlanLayout, values: Placements): PlanLayout {
   return { ...layout,

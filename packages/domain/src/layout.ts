@@ -2,9 +2,9 @@ import { isPlanGeometry, isPolygon, isRectangle, type PlanGeometry, type Polygon
 
 /** Câmera do cliente em pixels, separada das coordenadas métricas dos objetos. */
 export interface LayoutCamera { x: number; y: number; zoom: number }
-export interface LayoutDesk { id: string; placement: Rectangle }
+export interface LayoutDesk { id: string; placement: Rectangle; sectorId?: string | null }
 export interface LayoutRack { id: string; placement: Rectangle | null }
-export interface LayoutSector { id: string; polygon: Polygon }
+export interface LayoutSector { id: string; polygon: Polygon; name?: string }
 export interface PlanLayout {
   version: 1;
   unit: 'm';
@@ -42,13 +42,18 @@ export function isPlanLayout(value: unknown): value is PlanLayout {
   const background = value.geometry.background;
   if (background && (!fields(background, ['originalFileId', 'renderedFileId', 'page', 'sourceWidthPx', 'sourceHeightPx', 'placement'])
     || !rectangleFields(background.placement))) return false;
-  const valid = uniqueItems(value.desks, (item): item is LayoutDesk => object(item) && fields(item, ['id', 'placement'])
+  const valid = uniqueItems(value.desks, (item): item is LayoutDesk => object(item) && fields(item, ['id', 'placement', 'sectorId'])
+      && (item.sectorId === undefined || item.sectorId === null || id(item.sectorId))
       && id(item.id) && isRectangle(item.placement) && rectangleFields(item.placement))
     && uniqueItems(value.racks, (item): item is LayoutRack => object(item) && id(item.id)
       && fields(item, ['id', 'placement']) && (item.placement === null || (isRectangle(item.placement) && rectangleFields(item.placement))))
-    && uniqueItems(value.sectors, (item): item is LayoutSector => object(item) && fields(item, ['id', 'polygon'])
+    && uniqueItems(value.sectors, (item): item is LayoutSector => object(item) && fields(item, ['id', 'polygon', 'name'])
+      && (item.name === undefined || (typeof item.name === 'string' && item.name.trim().length > 0 && item.name.length <= 200))
       && id(item.id) && isPolygon(item.polygon) && item.polygon.every(positionFields));
   if (!valid) return false;
-  const objectIds = [...value.desks as LayoutDesk[], ...value.racks as LayoutRack[], ...value.sectors as LayoutSector[]].map(item => item.id.toLowerCase());
+  const sectors = new Set((value.sectors as LayoutSector[]).map(item => item.id.toLowerCase()));
+  if ((value.desks as LayoutDesk[]).some(item => item.sectorId && !sectors.has(item.sectorId.toLowerCase()))) return false;
+  const objectIds = [...value.desks as LayoutDesk[], ...value.racks as LayoutRack[], ...value.sectors as LayoutSector[],
+    ...value.geometry.walls, ...value.geometry.openings].map(item => item.id.toLowerCase());
   return new Set(objectIds).size === objectIds.length;
 }

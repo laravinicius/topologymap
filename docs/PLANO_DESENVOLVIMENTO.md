@@ -4,7 +4,7 @@ Projeto: Topologia New. Elaborado em 30/09/2026.
 
 **Estado inicial:** documentação criada; aplicação, banco e containers ainda não implementados. Todas as etapas abaixo começam pendentes.
 
-**Estado atual (01/10/2026):** etapas 01 a 12 concluídas. A etapa 12 entrega editor Konva com transformações métricas, salvamento versionado, histórico restrito ao layout, tratamento de conflito/falha e visualizador; evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 13 a 21 permanecem pendentes. Implementações anteriores e usuários, sessões, empresa, acessos e cadastros existentes no banco de trabalho foram preservados; novas instalações usam provisionamento explícito conforme o README.
+**Estado atual (02/10/2026):** etapas 01 a 13 concluídas. A etapa 13 entrega paredes, portas/janelas dependentes de paredes, setores nomeados e associação explícita das mesas, com edição, salvamento versionado e histórico do desenho; evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 14 a 21 permanecem pendentes. Implementações anteriores e usuários, sessões, empresa, acessos e cadastros existentes no banco de trabalho foram preservados; novas instalações usam provisionamento explícito conforme o README.
 
 Este documento transforma [ESCOPO.md](ESCOPO.md) e [IMPLEMENTACAO.md](IMPLEMENTACAO.md) em tarefas executáveis, em ordem, com solicitações prontas para copiar para o agente.
 
@@ -83,7 +83,7 @@ Usar os estados `Pendente`, `Em andamento`, `Concluída` e `Bloqueada`. Marcar b
 | 10 | Visualização frontal do rack e associação pela porta | 09 | Concluída |
 | 11 | Persistência do layout e revisões | 06, 07, 10 | Concluída |
 | 12 | Área de desenho e posicionamento de mesas/racks | 11 | Concluída |
-| 13 | Paredes, portas, janelas e setores | 12 | Pendente |
+| 13 | Paredes, portas, janelas e setores | 12 | Concluída |
 | 14 | Importação de plantas e calibração de escala | 13 | Pendente |
 | 15 | Busca e navegação entre planta, mesa e rack | 14 | Pendente |
 | 16 | Página pública e etiquetas QR Code | 15 | Pendente |

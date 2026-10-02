@@ -38,6 +38,20 @@ export function isPolygon(value: unknown): value is Polygon {
   if (!Array.isArray(value) || value.length < 3 || !value.every(isPosition)) return false;
   const keys = new Set(value.map(p => `${p.x},${p.y}`));
   if (keys.size !== value.length) return false;
+  // Região simples: arestas não adjacentes não podem se cruzar ou tocar.
+  const cross = (a: Position, b: Position, c: Position) => (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+  const on = (a: Position, b: Position, p: Position) => cross(a,b,p) === 0
+    && p.x >= Math.min(a.x,b.x) && p.x <= Math.max(a.x,b.x) && p.y >= Math.min(a.y,b.y) && p.y <= Math.max(a.y,b.y);
+  for (let i = 0; i < value.length; i++) {
+    const a = value[i]!, b = value[(i+1)%value.length]!, c = value[(i+2)%value.length]!;
+    if (cross(a,b,c) === 0 && ((b.x-a.x)*(c.x-b.x)+(b.y-a.y)*(c.y-b.y)) < 0) return false;
+    for (let j = i+2; j < value.length; j++) {
+      if (i === 0 && j === value.length-1) continue;
+      const c = value[j]!, d = value[(j+1)%value.length]!;
+      if ((Math.sign(cross(a,b,c))*Math.sign(cross(a,b,d)) < 0 && Math.sign(cross(c,d,a))*Math.sign(cross(c,d,b)) < 0)
+        || on(a,b,c) || on(a,b,d) || on(c,d,a) || on(c,d,b)) return false;
+    }
+  }
   let area = 0;
   for (let i = 0; i < value.length; i++) {
     const a = value[i]!; const b = value[(i + 1) % value.length]!;
@@ -52,7 +66,7 @@ export function isPlanGeometry(value: unknown): value is PlanGeometry {
   for (const wall of value.walls) {
     if (!record(wall) || !identifier(wall.id) || walls.has(wall.id)
       || !isPosition(wall.start) || !isPosition(wall.end) || !positive(wall.thickness)
-      || Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y) === 0) return false;
+      || !positive(Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y))) return false;
     walls.set(wall.id, wall as unknown as Wall);
   }
   const openingIds = new Set<string>();
@@ -63,6 +77,11 @@ export function isPlanGeometry(value: unknown): value is PlanGeometry {
     const wall = walls.get(opening.wallId);
     if (!wall || opening.offset + opening.width > Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)) return false;
     openingIds.add(opening.id);
+  }
+  const openings = value.openings as Opening[];
+  for (let i = 0; i < openings.length; i++) for (let j = i+1; j < openings.length; j++) {
+    const a = openings[i]!, b = openings[j]!;
+    if (a.wallId === b.wallId && a.offset < b.offset+b.width && b.offset < a.offset+a.width) return false;
   }
   if (value.background !== undefined) {
     const b = value.background;

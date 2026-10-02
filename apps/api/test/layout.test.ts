@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { buildApp } from '../src/app.js';
 import { databaseConfig } from '../src/database/config.js';
@@ -87,6 +87,7 @@ test('etapa 11: layout estruturado, revisão e referências canônicas em Postgr
       crossCompany.desks[0].id = deskB;
       assert.equal((await save(current.revision, crossCompany)).statusCode, 409);
       crossCompany.desks[0].id = desk;
+      crossCompany.desks[0].sectorId = null;
       crossCompany.sectors[0].id = sectorB;
       assert.equal((await save(current.revision, crossCompany)).statusCode, 409);
       valid.racks = [];
@@ -114,6 +115,7 @@ test('etapa 11: layout estruturado, revisão e referências canônicas em Postgr
       for (const [collection, foreignId] of [['desks', otherDesk], ['racks', otherRack], ['sectors', otherSector]]) {
         for (const replacement of [foreignId, '00000000-0000-4000-8000-000000000001']) {
           const layout = structuredClone(current.layout); layout[collection!][0].id = replacement;
+          if (collection === 'sectors') layout.desks[0].sectorId = null;
           assert.equal((await save(current.revision, layout)).statusCode, 409, collection);
         }
         const duplicate = structuredClone(current.layout); duplicate[collection!].push(structuredClone(duplicate[collection!][0]));
@@ -130,6 +132,7 @@ test('etapa 11: layout estruturado, revisão e referências canônicas em Postgr
         (layout: any) => { layout.geometry.desks = layout.desks; },
         (layout: any) => { layout.connections = []; },
         (layout: any) => { layout.geometry.walls[0].attrs = { x: 1 }; },
+        (layout: any) => { layout.geometry.walls[0].id = layout.desks[0].id; },
         (layout: any) => { layout.camera.scaleX = 2; },
         (layout: any) => { layout.desks[0].placement.points = []; },
         (layout: any) => { layout.racks[0].name = 'Sobrescrita'; },
@@ -281,6 +284,59 @@ test('etapa 11: layout estruturado, revisão e referências canônicas em Postgr
       const viewer = (await app!.inject({ method: 'POST', url: '/api/auth/login', headers: { origin }, payload: { login: 'viewer.layout.qa', password: viewerPassword } }));
       assert.equal(viewer.statusCode, 200);
       assert.equal((await app!.inject({ method: 'POST', url: attach, headers: { origin, cookie: viewer.headers['set-cookie']!.toString().split(';')[0]! }, payload: { expectedRevision: after.revision } })).statusCode, 403);
+    });
+
+    await t.test('etapa 13: setores nomeados, relações e remoção preservam mesas, pontos e conexões', async () => {
+      const current = await read(), layout = structuredClone(current.layout), a = randomUUID(), b = randomUUID();
+      const cableBefore = (await pool.query('SELECT to_jsonb(c) row FROM connections c ORDER BY id')).rows;
+      layout.sectors.push({ id:a,name:'Atendimento QA',polygon:[{x:0,y:0},{x:4,y:0},{x:4,y:4},{x:0,y:4}] },
+        { id:b,name:'Engenharia QA',polygon:[{x:4,y:0},{x:8,y:0},{x:8,y:4},{x:4,y:4}] });
+      layout.desks[0].sectorId = a;
+      const explicitSave = (revision: number, value: unknown, ids: string[] = []) => call('PUT',url,{expectedRevision:revision,layout:value,newSectorIds:ids});
+      assert.equal((await save(current.revision,layout)).statusCode,409);
+      assert.equal((await explicitSave(current.revision,layout,[a,b])).statusCode,200);
+      const saved = await read();
+      assert.equal(saved.revision,current.revision+1);
+      assert.equal(saved.layout.desks[0].sectorId,a);
+      assert.equal((await pool.query('SELECT name FROM sectors WHERE id=$1',[a])).rows[0]!.name,'Atendimento QA');
+      const renamed = structuredClone(saved.layout);
+      renamed.sectors.find((s:any) => s.id === a).name = 'Engenharia QA';
+      renamed.sectors.find((s:any) => s.id === b).name = 'Atendimento QA';
+      assert.equal((await save(saved.revision,renamed)).statusCode,200);
+      const beforeRemove = await read(), removed = structuredClone(beforeRemove.layout);
+      removed.sectors = removed.sectors.filter((s:any) => s.id !== a);
+      // Relação órfã explícita é recusada sem gravação parcial.
+      assert.equal((await save(beforeRemove.revision,removed)).statusCode,400);
+      removed.desks[0].sectorId = null;
+      assert.equal((await save(beforeRemove.revision,removed)).statusCode,200);
+      assert.equal((await pool.query('SELECT id FROM desks WHERE id=$1',[desk])).rowCount,1);
+      assert.equal((await pool.query('SELECT id FROM points WHERE id=$1',[point])).rowCount,1);
+      assert.deepEqual((await pool.query('SELECT to_jsonb(c) row FROM connections c ORDER BY id')).rows,cableBefore);
+      const latest = await read();
+      assert.equal(latest.layout.desks[0].sectorId,null);
+      assert.equal((await save(latest.revision,beforeRemove.layout)).statusCode,409);
+      // Desfazer local depois de salvar recria somente setor com intenção explícita.
+      assert.equal((await explicitSave(latest.revision,beforeRemove.layout,[a])).statusCode,200);
+      const restored = await read(); assert.equal(restored.layout.desks[0].sectorId,a);
+      const crossed = structuredClone(restored.layout);
+      crossed.desks[0].sectorId = sectorB;
+      assert.equal((await save(restored.revision,crossed)).statusCode,400);
+      const duplicate = structuredClone(restored.layout);
+      duplicate.sectors.find((s:any) => s.id === a).name = 'Atendimento QA';
+      assert.equal((await save(restored.revision,duplicate)).statusCode,409);
+      assert.deepEqual(await read(),restored);
+      const foreign = structuredClone(restored.layout);
+      foreign.sectors.push({id:sectorB,name:'Cruzado',polygon:[{x:0,y:0},{x:1,y:0},{x:0,y:1}]});
+      assert.equal((await explicitSave(restored.revision,foreign,[sectorB])).statusCode,409);
+      const polygon = structuredClone(restored.layout);
+      polygon.sectors[0].polygon = [{x:0,y:0},{x:4,y:3},{x:0,y:3},{x:3,y:0}];
+      assert.equal((await save(restored.revision,polygon)).statusCode,400);
+      const legacy = structuredClone(restored.layout);
+      legacy.sectors = legacy.sectors.filter((s:any) => s.id !== a);
+      delete legacy.desks[0].sectorId; // clientes v1 anteriores preservam associações, exceto setor removido
+      assert.equal((await save(restored.revision,legacy)).statusCode,200);
+      assert.equal((await pool.query('SELECT sector_id FROM desks WHERE id=$1',[desk])).rows[0]!.sector_id,null);
+      assert.deepEqual((await pool.query('SELECT to_jsonb(c) row FROM connections c ORDER BY id')).rows,cableBefore);
     });
   } finally {
     if (app) await app.close();
