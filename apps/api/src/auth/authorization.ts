@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { AccessibleCompany } from '@topologia-new/domain';
+import { isPublicDeskRequest } from '../public-desks/routes.js';
 
 export type AccessPolicy = 'session' | 'admin' | 'company';
 declare module 'fastify' {
@@ -33,6 +34,7 @@ export function registerAuthorization(app: FastifyInstance, pool: pg.Pool) {
   app.decorateRequest('company', null);
   app.addHook('preHandler', async request => {
     const route = request.routeOptions.url;
+    if (isPublicDeskRequest(request)) return;
     if ((route === '/api/health' && ['GET', 'HEAD'].includes(request.method)) ||
       (['/api/auth/login', '/api/auth/logout'].includes(route ?? '') && request.method === 'POST')) return;
     const policy = request.routeOptions.config.access;

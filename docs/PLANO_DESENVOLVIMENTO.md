@@ -4,7 +4,7 @@ Projeto: Topologia New. Elaborado em 30/09/2026.
 
 **Estado inicial:** documentação criada; aplicação, banco e containers ainda não implementados. Todas as etapas abaixo começam pendentes.
 
-**Estado atual (02/10/2026):** etapas 01 a 15 concluídas. A etapa 15 integra busca/filtros e navegação entre planta, mesa, ponto, datacenter, rack, patch panel e porta pelos IDs existentes, com consulta de objetos sem posição, foco local, recarga/histórico e autorização atual; contrato em [NAVEGACAO.md](NAVEGACAO.md), evidências em [PROGRESSO.md](PROGRESSO.md). Fundos privados e calibração da etapa 14 preservados. Etapas 16 a 21 permanecem pendentes. Implementações anteriores e cadastros existentes no banco de trabalho foram preservados; novas instalações usam provisionamento explícito conforme o README.
+**Estado atual (02/10/2026):** etapas 01 a 17 concluídas. A etapa 17 entrega consulta autenticada completa em tela compacta, navegação/listas/detalhes e gestos de planta, preservando a edição no computador e o QR restrito à mesa; contrato em [CONSULTA_CELULAR.md](CONSULTA_CELULAR.md) e [QR_PUBLICO.md](QR_PUBLICO.md), evidências em [PROGRESSO.md](PROGRESSO.md). Etapas 18 a 21 permanecem pendentes. Prova em Chromium real com viewports e toque emulado, sem celular físico ou produção. Cadastros existentes e implementações anteriores preservados; novas instalações usam provisionamento explícito conforme o README.
 
 Este documento transforma [ESCOPO.md](ESCOPO.md) e [IMPLEMENTACAO.md](IMPLEMENTACAO.md) em tarefas executáveis, em ordem, com solicitações prontas para copiar para o agente.
 
@@ -86,8 +86,8 @@ Usar os estados `Pendente`, `Em andamento`, `Concluída` e `Bloqueada`. Marcar b
 | 13 | Paredes, portas, janelas e setores | 12 | Concluída |
 | 14 | Importação de plantas e calibração de escala | 13 | Concluída |
 | 15 | Busca e navegação entre planta, mesa e rack | 14 | Concluída |
-| 16 | Página pública e etiquetas QR Code | 15 | Pendente |
-| 17 | Consulta completa no celular | 16 | Pendente |
+| 16 | Página pública e etiquetas QR Code | 15 | Concluída |
+| 17 | Consulta completa no celular | 16 | Concluída |
 | 18 | Identidade visual Microgate | 17 | Pendente |
 | 19 | Validação integrada e da escala prevista | 18 | Pendente |
 | 20 | Build de produção, backup e restauração | 19 | Pendente |

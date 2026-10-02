@@ -16,7 +16,7 @@ export function BackgroundPanel({ layout, editable, writable, fileBase, importFi
   useEffect(() => { if (b && points.length) setSource([0,1].map(i => points[i] ? worldToSource(b,points[i]!) : { x: 0,y: 0 })); },[points,b]);
   function apply(background?: PlanBackground) { const next = structuredClone(layout); if (background) next.geometry.background = background; else delete next.geometry.background; change(next); }
   return <section className="background-panel" aria-label="Fundo da planta"><h4>Fundo da planta</h4>
-    <p className="intro">PNG/JPG/PDF até 20 MiB. Imagens: até 8192 px por lado e 16 milhões de pixels. PDF: até 100 páginas. O fundo tem escala própria; mesas e conexões mantêm suas posições.</p>
+    <p className="intro">{writable ? 'PNG/JPG/PDF até 20 MiB. Imagens: até 8192 px por lado e 16 milhões de pixels. PDF: até 100 páginas. O fundo tem escala própria; mesas e conexões mantêm suas posições.' : b ? 'Fundo da planta disponível para consulta e download.' : 'Esta planta não possui fundo importado.'}</p>
     {writable && <><label htmlFor="background-file">Importar ou trocar fundo</label><input id="background-file" type="file" accept="image/png,image/jpeg,application/pdf,.png,.jpg,.jpeg,.pdf" disabled={!editable || uploading} onChange={e => {
       const next = e.target.files?.[0] ?? null; e.target.value = ''; setError(''); setReady(false); setPage(1); setFile(null);
       if (!next) return;

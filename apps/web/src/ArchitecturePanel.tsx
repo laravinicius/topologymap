@@ -73,6 +73,6 @@ export function ArchitecturePanel({ layout, selected, select, editable, writable
         const description = wall ? `Remover parede e suas ${count} abertura(s)?` : sector ? `Remover setor e desvincular ${count} mesa(s), preservando mesas e pontos?` : 'Remover abertura?';
         if (window.confirm(description)) { change(removeDrawingItem(layout, selected)); select(''); }
       }}>Remover {wall ? 'parede' : sector ? 'setor' : 'abertura'}</button></>}
-    </form> : <p className="empty-state">Selecione uma parede, abertura ou setor para editar suas propriedades.</p>}</div>
+    </form> : <p className="empty-state">Selecione uma parede, abertura ou setor para {writable ? 'editar' : 'consultar'} suas propriedades.</p>}</div>
   </div>;
 }

@@ -5,6 +5,7 @@ import { api, ApiError, json, message } from './api';
 import { Desks } from './Desks';
 import { Racks } from './Racks';
 import { navigatePark } from './navigation';
+import { useCompact } from './useCompact';
 export { navigatePark } from './navigation';
 const PlanEditor = lazy(() => import('./PlanEditor').then(module => ({ default: module.PlanEditor })));
 
@@ -64,6 +65,7 @@ function Collection({ title, singular, gender = 'o', path, items, writable, sele
 }
 
 export function Park({ data, refresh, checkSession }: { data: ParkSnapshot; refresh: () => Promise<void>; checkSession: () => Promise<void> }) {
+  const compact = useCompact();
   const [search, setSearch] = useState(location.search);
   useEffect(() => { const sync = () => setSearch(location.search); window.addEventListener('popstate', sync); return () => window.removeEventListener('popstate', sync); }, []);
   const query = new URLSearchParams(search);
@@ -71,9 +73,10 @@ export function Park({ data, refresh, checkSession }: { data: ParkSnapshot; refr
   const floor = data.floors.find(item => item.id === query.get('andar') && item.unitId === unit?.id);
   const plan = data.plans.find(item => item.id === query.get('planta') && item.floorId === floor?.id);
   const datacenter = data.datacenters.find(item => item.id === query.get('datacenter') && item.unitId === unit?.id);
-  const base = `/companies/${data.company.id}`, writable = data.company.role !== 'viewer';
+  const base = `/companies/${data.company.id}`, writable = data.company.role !== 'viewer' && !compact;
   const common = { writable, refresh, checkSession };
-  return <div className="park-context">
+  return <div className="park-context" id="park-context">
+    {compact && data.company.role !== 'viewer' && <p className="intro">Consulta nesta tela. Para editar, use a interface de computador.</p>}
     <nav className="breadcrumbs" aria-label="Contexto do parque">
       <button className="secondary" onClick={() => navigatePark({ unidade: '', andar: '', planta: '', datacenter: '' })}>{data.company.name}</button>
       {unit && <><span aria-hidden="true">/</span><button className="secondary" onClick={() => navigatePark({ andar: '', planta: '', datacenter: '' })}>{unit.name}</button></>}
@@ -89,7 +92,7 @@ export function Park({ data, refresh, checkSession }: { data: ParkSnapshot; refr
       {floor ? <div key={floor.id}>
         <h3>Andar: {floor.name}</h3>
         <Collection {...common} title="Plantas" singular="planta" gender="a" path={`${base}/units/${unit.id}/floors/${floor.id}/plans`} items={data.plans.filter(item => item.floorId === floor.id)} selected={plan?.id} select={id => navigatePark({ planta: id, datacenter: '' })} />
-        {plan && <div key={plan.id}><section className="park-detail"><h4>Planta: {plan.name}</h4><p>Posicione os objetos na área de planta; cadastre mesas e pontos abaixo.</p></section>
+        {plan && <div key={plan.id}><section className="park-detail"><h4>Planta: {plan.name}</h4><p>{writable ? 'Posicione os objetos na área de planta; cadastre mesas e pontos abaixo.' : 'Consulte o desenho ou a lista de mesas e pontos abaixo.'}</p></section>
           <Suspense fallback={<p role="status">Carregando área de planta…</p>}><PlanEditor {...common} park={data} planId={plan.id} unitId={unit.id} floorId={floor.id} focusId={query.get('foco') ?? ''} selectedDesk={query.get('mesa') ?? ''} /></Suspense>
           <Desks {...common} park={data} path={`${base}/units/${unit.id}/floors/${floor.id}/plans/${plan.id}/desks`} selected={query.get('mesa') ?? ''} selectedPoint={query.get('ponto') ?? ''} />
         </div>}

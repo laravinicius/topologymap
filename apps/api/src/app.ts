@@ -15,6 +15,7 @@ import { registerConnections } from './connections/routes.js';
 import { registerLayout } from './layout/routes.js';
 import { registerFiles } from './files/routes.js';
 import { registerSearch } from './search/routes.js';
+import { isPublicDeskRequest, registerPublicDesks } from './public-desks/routes.js';
 
 declare module 'fastify' {
   interface FastifyRequest { session: AuthSession | null }
@@ -88,6 +89,7 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
   app.addHook('onRequest', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
     reply.header('X-Content-Type-Options', 'nosniff');
+    if (isPublicDeskRequest(request)) return;
     const route = request.routeOptions.url;
     const safe = ['GET', 'HEAD', 'OPTIONS'].includes(request.method);
     if (!safe && (!config.origins.includes(request.headers.origin ?? '') || request.headers['sec-fetch-site'] === 'cross-site')) {
@@ -177,6 +179,7 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
   registerLayout(app, pool);
   registerFiles(app, pool, filesDirectory);
   registerSearch(app, pool);
+  registerPublicDesks(app, pool, config.publicOrigin ?? config.origins[0]!);
   app.get('/api/auth/session', { config: { access: 'session' } }, async request => request.session!);
   app.post('/api/auth/logout', async (request, reply) => {
     const token = request.cookies[cookieName];

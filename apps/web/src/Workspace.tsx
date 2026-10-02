@@ -5,8 +5,10 @@ import { Administration } from './Administration';
 import { Park } from './Park';
 import { confirmNavigation } from './navigation';
 import { Search } from './Search';
+import { useCompact } from './useCompact';
 
 export function Workspace({ session, checkSession }: { session: AuthSession; checkSession: () => Promise<void> }) {
+  const compact = useCompact();
   const [companies, setCompanies] = useState<AccessibleCompany[]>([]);
   const [selected, setSelected] = useState(() => new URLSearchParams(location.search).get('empresa') ?? '');
   const [park, setPark] = useState<ParkSnapshot | null>(null);
@@ -54,10 +56,10 @@ export function Workspace({ session, checkSession }: { session: AuthSession; che
   return <>
     <nav className="workspace-nav" aria-label="Navegação principal">
       <button className={!admin ? undefined : 'secondary'} aria-current={!admin ? 'page' : undefined} onClick={() => navigate(`/parque${selected ? `?empresa=${encodeURIComponent(selected)}` : ''}`)}>Empresas autorizadas</button>
-      {session.user.isAdmin && <button className={admin ? undefined : 'secondary'} aria-current={admin ? 'page' : undefined} onClick={() => navigate('/administracao')}>Administração</button>}
+      {session.user.isAdmin && !compact && <button className={admin ? undefined : 'secondary'} aria-current={admin ? 'page' : undefined} onClick={() => navigate('/administracao')}>Administração</button>}
     </nav>
     {admin && error && <p role="alert" className="error">{error}</p>}
-    {admin && session.user.isAdmin ? <Administration companies={companies} refreshCompanies={refresh} checkSession={checkSession} /> : <section className="panel" aria-labelledby="companies-access-title">
+    {admin && session.user.isAdmin && !compact ? <Administration companies={companies} refreshCompanies={refresh} checkSession={checkSession} /> : <section className="panel" aria-labelledby="companies-access-title">
       <div className="panel-header"><h2 id="companies-access-title">Empresas autorizadas</h2><button className="secondary" onClick={() => void refresh()}>Atualizar acessos</button></div>
       {loading && <p role="status">Carregando empresas…</p>}
       {error && <p role="alert" className="error">{error}</p>}
@@ -68,7 +70,13 @@ export function Workspace({ session, checkSession }: { session: AuthSession; che
           <option value="">Selecione uma empresa</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name} — {c.role === 'admin' ? 'Administrador geral' : c.role === 'manager' ? 'Gerenciamento' : 'Visualização'}</option>)}
         </select>
       </>}
-      {!loading && <Search companies={companies} checkSession={checkSession} />}
+      {company && <nav className="park-actions reading-shortcuts" aria-label="Atalhos de consulta">
+        <button className="secondary" onClick={() => { const search = document.getElementById('search-disclosure') as HTMLDetailsElement; search.open = true; search.scrollIntoView({ block: 'start' }); }}>Buscar no parque</button>
+        <button className="secondary" onClick={() => document.getElementById('park-context')?.scrollIntoView({ block: 'start' })}>Navegar na hierarquia</button>
+      </nav>}
+      {!loading && <details id="search-disclosure" className="search-disclosure" open={!compact}>
+        <summary>Busca e lista do parque</summary><Search companies={companies} checkSession={checkSession} />
+      </details>}
       {company && <div className="company-context">
         <h3>{company.name}</h3><p className="badge">{company.role === 'admin' ? 'Administrador geral' : company.role === 'manager' ? 'Gerenciamento' : 'Visualização — somente consulta'}</p>
         {park && <Park key={company.id} data={park} refresh={refresh} checkSession={checkSession} />}

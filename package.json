@@ -28,7 +28,10 @@
     "test:layout-editor": "npm run build --workspace @topologia-new/domain && tsx --test apps/web/test/layoutEditor.test.ts apps/web/test/background.test.ts",
     "test:files": "docker compose exec -T api npm run test:files --workspace @topologia-new/api",
     "test:search": "docker compose exec -T api npm run test:search --workspace @topologia-new/api",
+    "test:public": "docker compose exec -T api npm run test:public --workspace @topologia-new/api",
+    "test:qr": "npm run build --workspace @topologia-new/domain && tsx --test apps/web/test/qr.test.ts",
     "test:navigation": "npm run build --workspace @topologia-new/domain && tsx --test apps/web/test/navigation.test.ts",
+    "test:touch": "npm run build --workspace @topologia-new/domain && tsx --test apps/web/test/touchCamera.test.ts",
     "admin:create": "docker compose exec api npm run admin:create --workspace @topologia-new/api"
   }
 }

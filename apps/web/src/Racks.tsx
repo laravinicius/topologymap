@@ -119,7 +119,7 @@ export function Racks({ path, selected, selectedEquipment, selectedPort, writabl
         navigatePark({ equipamento: panel.id, porta: id });
       }} onMove={moveEquipment} onEdit={editPosition} />
       {!rack.equipment.length && <p className="empty-state">Nenhum equipamento neste rack.</p>}
-      <ul className="park-list">{rack.equipment.map(e => <li key={e.id}><div className="park-item-name">
+      <ul className="park-list" id="rack-equipment-list" aria-label="Lista equivalente de equipamentos e portas">{rack.equipment.map(e => <li key={e.id}><div className="park-item-name">
         <button className="secondary" disabled={busy} aria-label={`Abrir equipamento ${e.name}`} aria-pressed={selectedEquipment === e.id} onClick={() => navigatePark({ equipamento: e.id })}>{e.name}</button>
         <span>{e.kind === 'patch_panel' ? 'Patch panel' : 'Genérico'} · {e.equipmentType} · U {e.startU} a {e.startU + e.heightU - 1} ({e.heightU} U){e.kind === 'patch_panel' && ` · ${e.portCount} portas`}</span>
       </div></li>)}</ul>

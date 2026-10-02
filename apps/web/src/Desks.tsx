@@ -6,6 +6,7 @@ import { navigatePark } from './Park';
 import { ConnectionPath } from './ConnectionPath';
 import { DeskConnectionEditor, type ConnectionAction } from './DeskConnectionEditor';
 import { ObjectLink } from './ObjectLink';
+import { DeskPublicLink } from './DeskPublicLink';
 
 const defaultPlacement: Rectangle = { x: 0, y: 0, width: 1.2, height: 0.6, rotation: 0 };
 export function Desks({ path, selected, selectedPoint, writable, park, refresh, checkSession }: {
@@ -98,6 +99,7 @@ export function Desks({ path, selected, selectedPoint, writable, park, refresh, 
       </div>}</div>
       <p>{detail.pointCount} pontos · Centro ({detail.placement.x}, {detail.placement.y}) m · {detail.placement.width} × {detail.placement.height} m · Rotação {detail.placement.rotation}°</p>
       <ObjectLink companyId={park.company.id} kind="desk" id={detail.id} view="plan">Localizar mesa na planta</ObjectLink>
+      {writable && <DeskPublicLink key={detail.id} path={`${path}/${detail.id}`} name={detail.name} checkSession={checkSession} />}
       {selectedPoint && !detail.points.some(p => p.id === selectedPoint) && <p role="alert" className="error">Ponto não encontrado nesta mesa.</p>}
       {!detail.points.length && <p className="empty-state">Esta mesa ainda não possui pontos.</p>}
       <ul className="park-list">{detail.points.map(p => <li key={p.id} id={`point-${p.id}`} tabIndex={-1} data-selected={selectedPoint === p.id}><div className="park-item-name"><button type="button" className="secondary" aria-label={`Consultar ponto ${p.name}`} aria-pressed={selectedPoint === p.id} onClick={() => navigatePark({ ponto: p.id })}>{p.name}</button><span className="badge">{p.connectionId ? 'Associado' : 'Não associado'}</span></div>

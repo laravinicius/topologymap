@@ -1,6 +1,6 @@
 # Topologia New
 
-Projeto independente para documentar plantas, mesas, datacenters, racks e conexões de várias empresas. Etapas 01 a 13 concluídas: ambiente Docker, autenticação e acessos por empresa, hierarquia, mesas/pontos, racks/equipamentos/portas, conexões e editor 2D com paredes, aberturas e setores nomeados. Novas instalações começam com o parque vazio; o primeiro administrador é criado explicitamente pelo usuário, sem senha padrão.
+Projeto independente para documentar plantas, mesas, datacenters, racks e conexões de várias empresas. Etapas 01 a 17 concluídas: ambiente Docker, autenticação/acessos, cadastros e conexões, editor 2D/fundos calibrados, busca, consulta completa em tela compacta e consulta pública restrita à mesa com etiqueta QR. Novas instalações começam com o parque vazio; o primeiro administrador é criado explicitamente pelo usuário, sem senha padrão.
 
 - [Escopo](docs/ESCOPO.md)
 - [Arquitetura](docs/IMPLEMENTACAO.md)
@@ -121,6 +121,14 @@ Toda escrita exige o header `Origin` presente e igual a uma das origens configur
 
 Limites: **5 tentativas por login e 20 por IP em janelas de 15 minutos**, incluindo tentativas bem-sucedidas; HTTP 429 informa `Retry-After`. As janelas usam upsert atômico no PostgreSQL, sobrevivem ao reinício e não são zeradas no login. Login inexistente e senha incorreta recebem a mesma mensagem. No proxy Vite local, o IP visto é o do proxy; `X-Forwarded-For` não é confiado, evitando falsificação. A publicação futura deverá configurar explicitamente seus proxies confiáveis; não habilite confiança irrestrita. A API limita também a duas verificações de senha simultâneas para conter uso de memória.
 
+## Consulta pública e etiquetas QR
+
+Gerente/admin: selecione uma mesa no cadastro e use **Ativar consulta pública**. Confira o endereço e **Abrir consulta pública**, depois **Imprimir etiqueta**. O QR é gerado localmente; a página mostra só mesa, pontos e destinos, sem navegação para o parque. Desativar bloqueia a consulta; reativar mantém a URL; renovar invalida a anterior e exige substituir etiquetas. Visualizadores não gerenciam endereços.
+
+Configure `PUBLIC_ORIGIN` no `.env` com a origem completa sem caminho/barra final (produção exige HTTPS) e execute `npm run dev:all`. Padrão local: `http://localhost:5173`. Essa URL foi validada no computador e em viewport; não em celular físico. Alterar a origem não publica o servidor nem abre portas; infraestrutura/domínio definitivos ficam para as etapas posteriores. [Contrato e operação](docs/QR_PUBLICO.md).
+
+Testes da entrega: `npm run test:public`, `npm run test:qr` e `npm run test:db`. Migração `007_desk_public_links.sql` via `npm run db:migrate`, sem ativar mesas existentes ou recriar volumes.
+
 ## Estado, logs e healthcheck
 
 ```powershell
@@ -240,7 +248,13 @@ Para um ponto associado, use **Transferir** → selecione a nova porta → **Rev
 
 Use **Busca e lista do parque** para pesquisar nomes e filtrar empresa/unidade/andar/setor/tipo; setores filtram mesas e pontos. **Consultar** abre o detalhe, inclusive sem posição/planta; **Localizar na planta** seleciona e enquadra mesa/rack sem gravar o layout. No caminho da conexão, consulte origem/destino ou localize os objetos, inclusive entre andares. Um destino fora dos filtros limpa a busca com aviso. Seleção, filtros e foco permanecem na URL ao recarregar e voltar; URLs diretas exigem autorização atual. Contrato e testes em [NAVEGACAO.md](docs/NAVEGACAO.md), `npm run test:search` e `npm run test:navigation`.
 
-A próxima etapa é **16 — Página pública e etiquetas QR Code**, pendente e não iniciada. Consulta móvel completa, QR Code e produção continuam nas etapas previstas. A identidade Microgate completa permanece na etapa 18; logos serão fornecidos posteriormente.
+## Consulta no celular
+
+Até 900 CSS px, a interface oferece consulta: busca recolhível, hierarquia completa, planta com toque para selecionar, um dedo para movimentar e dois para zoom, detalhes e listas equivalentes. Use **Ver lista e detalhes** na planta e **Consultar equipamentos e portas pela lista** no rack. O QR permanece restrito à mesa/pontos/destinos. Acima desse limite, gerente/admin mantêm a edição; a autorização da API continua definida pela conta/empresa, independentemente da largura.
+
+Validado em Chromium real nos viewports 360, 375, 390 e 768 px, horizontal 844×390 e computador 1280×900, com toque emulado. Não houve teste em celular físico ou produção. [Roteiro, evidências e limites](docs/CONSULTA_CELULAR.md); `npm run test:touch` verifica a matemática dos gestos.
+
+A próxima etapa é **18 — Identidade visual Microgate**, pendente e não iniciada; logos serão fornecidos posteriormente. Validação integrada, operação de produção e publicação permanecem nas etapas 19–21.
 
 QA opcional da planta: `apps/api/test/browser-server.ts --stage13` mantém o padrão de banco temporário e provisionamento sintético explícito. `QA_ORIGIN` permite configurar uma origem alternativa (usado `http://localhost:5174` na etapa 13); o proxy web temporário aponta para `http://api:3002`, sem expor a API no host. Encerrar o servidor por SIGTERM/stdin remove banco e credencial temporária; encerre também o web de QA e remova seus arquivos de autenticação. Consulte as evidências e os limites em [PROGRESSO.md](docs/PROGRESSO.md#etapa-13--paredes-portas-janelas-e-setores).
 

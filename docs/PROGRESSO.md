@@ -2,9 +2,81 @@
 
 Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Git. Capturas, logs e relatórios permanecem disponíveis na máquina onde foram gerados; os resultados das verificações continuam registrados neste documento. Os caminhos abaixo são referências locais e não acompanham novas cópias do repositório.
 
-Atualizado em 02/10/2026 (America/Sao_Paulo), após implementação e validação da etapa 15.
+Atualizado em 02/10/2026 (America/Sao_Paulo), após implementação e validação da etapa 17.
 
-**Estado atual:** etapas 01 a 15 concluídas. Ambiente local saudável em [localhost:5173](http://localhost:5173), com busca, filtros, lista equivalente e navegação entre plantas, mesas/pontos, datacenters, racks/equipamentos/portas, integrados ao parque existente. Dados de trabalho preservados; QA sintético somente em bancos separados, removidos ao terminar. Etapas 16 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
+**Estado atual:** etapas 01 a 17 concluídas. Ambiente local saudável em [localhost:5173](http://localhost:5173), com consulta autenticada completa em tela compacta e QR restrito à mesa. Dados de trabalho preservados; QA sintético em bancos separados, removidos ao terminar. Etapas 18 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
+
+## Etapa 17 — Consulta completa no celular
+
+**Situação: Concluída em 02/10/2026.** Somente a etapa 17. Próxima: **18 — Identidade visual Microgate**, pendente. Sem commit, push ou publicação. Alterações locais anteriores da etapa 16 preservadas.
+
+### Entrega
+
+- `Workspace.tsx`, `Park.tsx`, `useCompact.ts`: busca recolhível, atalhos para hierarquia e modo de consulta até 900 CSS px. Empresa/unidade/andar/planta/datacenter/rack continuam acessíveis pela hierarquia e busca. A API mantém papéis por conta/empresa; viewport controla somente apresentação.
+- `PlanCanvas.tsx`, `touchCamera.ts`, `PlanEditor.tsx`: tap para selecionar, pan por um dedo e pinça por dois durante a consulta; botões equivalentes; canvas com altura adaptável e enquadramento. Lista/detalhes em uma coluna, propriedades de mesa/rack textuais. Câmera de leitura não escreve layout; edição, rascunho, histórico e proteção de saída preservados no computador e ao redimensionar.
+- `RackFront.tsx`, `Racks.tsx`, `style.css`: vista frontal com rolagem interna, acesso destacado à lista de equipamentos/portas, nomes completos, estados livre/ocupada, controles de leitura de pelo menos 44×44 CSS px. Portas gráficas pequenas continuam tendo alternativa pela lista. QR responsivo conserva somente mesa/pontos/destinos, sem navegação interna.
+- `ObjectLink.tsx`: resposta assíncrona de localização não substitui uma seleção posterior. `ArchitecturePanel.tsx`/`BackgroundPanel.tsx`: instruções coerentes com consulta. Testes da matemática dos gestos em `test/touchCamera.test.ts` e comando `npm run test:touch`.
+- QA opcional `browser-server.ts --stage17`: banco exclusivo, visualizador/gerente sintéticos, empresas autorizadas/restrita, mesas com oito pontos e patch panel com 48 portas. Nenhuma migração, seed ou alteração de autorização de API na etapa 17. Contrato/roteiro em [CONSULTA_CELULAR.md](CONSULTA_CELULAR.md); IMPLEMENTACAO/plano/README atualizados.
+
+### Verificações
+
+| Categoria | Procedimento | Resultado |
+|---|---|---|
+| Typecheck/build | `npm run typecheck`; `npm run build` | Aprovados após as alterações finais, incluindo API/testes/web/domínio. |
+| Câmera/gestos | `npm run test:touch` | **3/3**: pan preserva escala; pinça mantém ancoragem mesmo com centro em movimento; limites, contatos coincidentes e mudança de quantidade de dedos não produzem saltos/NaN. |
+| Edição/navegação | `npm run test:layout-editor`; `npm run test:navigation` | **6/6 + 4/4**: histórico/reconciliação/enquadramento/fundo e URLs/cadeias/conflitos/listas mantidos. |
+| API/PostgreSQL — autorização | `npm run test:access` | **13/13**: perfis, isolamento, escrita direta, revogação/desativação e sessões preservados. |
+| API/PostgreSQL — QR | `npm run test:public` | **11/11**: DTO restrito, gestão, papéis, tokens/estado/revisões, concorrência e persistência preservados. |
+| Navegador real — visualizador | Chromium/Playwright CLI: **360×800, 375×812, 390×844, 768×1024, 844×390 horizontal, 1280×900** | Em cada viewport: hierarquia → planta/lista → mesa/ponto → destino → porta 48 pela lista → rack/planta → origem → busca → ponto → recarga. Sem controles de edição do visualizador. |
+| Layout/alvos | Medir documento e controles em hierarquia/planta, mesa/pontos, rack/portas/lista, rack/planta e busca | **30 medições** sem overflow horizontal da página; alvos de leitura ≥44×44 CSS px, considerando label da grade e alternativa de portas pela lista. ScrollWidths 345/360/375/753/829/1265 px nos viewports acima; a barra vertical ocupa 15 px. Screenshots inspecionados visualmente. |
+| Toque emulado — planta | CDP `Input.dispatchTouchEvent`, um/dois contatos, screenshot do canvas e GET do layout antes/depois | Tap selecionou mesa; pinça **134% → 269%**; pan alterou a imagem. Layout/revisão **4 idênticos** antes/depois dos gestos. Botões de zoom/câmera funcionaram. Movimento reduzido conferido na seleção/lista. |
+| Navegação concorrente | Reter resolução de mesa, selecionar ponto, liberar resposta | URL/seleção do ponto posterior mantidas. |
+| Estados de leitura | Busca/hierarquia vazias, busca carregando, 503 simulado por interceptação | Estados legíveis em 390 px. Recarga/back/forward preservaram contexto. Erro simulado é prova de apresentação, não indisponibilidade real de infraestrutura. |
+| Autorização por requisição | PUT de layout com payload válido por viewer em 360/1280; PATCH sem mudança de nome por gerente em 768 | **403 / 403 / 200**. Tela grande não concede escrita; tela pequena não retira autorização da API do gerente. |
+| Edição no computador | Gerente, campos/aplicar/salvar/recarregar e resize 1280→768→1280 | X **3→3,25** persistiu; rascunho X **4** e histórico sobreviveram ao resize; desfazer restaurou 3,25. Controles ocultos em compacto reapareceram no computador. Exclusivamente QA. |
+| QR público — navegador separado | Mesmos seis viewports, oito pontos/destinos, recarga e inspeção das chamadas/cookies | Zero cookies, links/navegação interna e pedidos à API privada. Sem overflow; estados reais de token inválido/mesa sem pontos e carregamento controlado conferidos em 360 px. |
+| Preservação/limpeza | Snapshot contagens/MD5 antes/depois; encerramento do servidor/browser/web QA; consulta do catálogo de bancos | **18 tabelas de trabalho idênticas**, inclusive sessões e endereços públicos. Banco `topologia_new_test17_browser_*` removido; `temporaryDatabases: []`, `runtimeExists: false`; container QA removido e sessões de navegador encerradas. Volumes de trabalho preservados. |
+| Operação/whitespace | Compose/health local e `git diff --check` | Serviços principais saudáveis; interface somente `127.0.0.1:5173`; whitespace aprovado. |
+
+Total: **37 testes automatizados aprovados**, além dos fluxos/medições no navegador. Sem novos pacotes ou migrações nesta etapa. As tentativas preliminares do harness foram corrigidas para aguardar a resolução dos links, distinguir botões de busca/detalhe e medir o label clicável da grade; a prova final está nos logs de resultado. Erros HTTP dos cenários 403/404/503 são esperados; não foram identificadas exceções JavaScript da aplicação nos fluxos finais.
+
+Evidências locais em `docs/evidencias/etapa17/`: `typecheck.txt`, `build.txt`, `touch-camera.txt`, `layout-editor.txt`, `navegacao.txt`, `acessos.txt`, `publico.txt`, `fluxos.txt`, `gestos.txt`, `estados-acesso.txt`, `desktop.txt`, `selecao-toque.txt`, `qr-publico.txt`, `banco-preservado.json`, `cleanup.json`, `diff-check.txt` e screenshots `planta-*`, `mesa-*`, `rack-*`, `portas-*`, `busca-*`, `qr-*`, `gesto-*`, `toque-selecao-390.png`, `edicao-desktop.png`, `gerente-consulta-768.png`. Scripts de QA em `output/playwright/etapa17/`; capturas/logs ignorados pelo Git. Não acompanham um clone novo.
+
+**Limites da prova:** navegador real com viewport e toque emulado não substitui celular físico. Não houve Safari/iOS, Chrome/Android físico, teclado virtual, câmera/scanner QR, impressão física, conectividade externa ou produção. Escala integrada e identidade visual permanecem nas próximas etapas.
+
+Para validar localmente: abra [localhost:5173](http://localhost:5173), entre com uma conta existente e siga [CONSULTA_CELULAR.md](CONSULTA_CELULAR.md). Abra também um QR já ativado no banco de trabalho. `topologia_new`, `topologia_new_web` e `topologia_new_db` continuam saudáveis em execução; `npm run dev:stop` para parar preservando volumes, `npm run dev:all` para subir. **Pendências essenciais da etapa 17: nenhuma. Próxima etapa: 18**, somente mediante solicitação.
+
+## Etapa 16 — Consulta pública e etiquetas QR Code
+
+**Situação: Concluída em 02/10/2026.** Somente a etapa 16. Próxima: **17 — Consulta completa no celular**, pendente. Sem commit, push ou publicação.
+
+### Entrega
+
+- `packages/domain/src/publicDesk.ts`, `apps/api/src/public-desks/routes.ts`, `app.ts`, `auth/{authorization,config}.ts`: endpoint/DTO público próprio sem IDs/administração, com nomes/pontos/destinos canônicos atuais. Exceção sem sessão somente na rota exata GET/HEAD. Gestão com contexto completo e papel/atividade atuais; leitura/viewer não criam token. Token aleatório de 32 bytes; reativação mantém endereço, renovação invalida anterior, desativação bloqueia. Revisão e lock transacional protegem concorrência.
+- `007_desk_public_links.sql`: migração aditiva sem ativação automática ou alteração do parque. Aplicada no volume existente após backup local `backup/stage16-before.dump`; 001–006/volumes preservados. `compose.yaml`/`.env.example`: `PUBLIC_ORIGIN`, padrão local e HTTPS em produção.
+- `PublicDesk.tsx`/`main.tsx`: entrada sem App/login/navegação interna, lista de pontos/destinos, loading/erro/tentativa e revalidação. `DeskPublicLink.tsx`, `Desks.tsx`, `qr.ts`, `style.css`, `index.html`: gestão/confirmações no cadastro, endereço, QR local e impressão isolada do parque. `qrcode` 1.5.4/types 1.5.6 fixados; `jsqr` 1.4.0 só para decodificação independente de teste. Sem serviço externo.
+- Operação/contrato em [QR_PUBLICO.md](QR_PUBLICO.md); README/IMPLEMENTACAO/plano atualizados. Testes API/QR/migração e QA opcional `browser-server.ts --stage16`.
+
+### Verificações
+
+| Categoria | Procedimento | Resultado |
+|---|---|---|
+| Typecheck/build | `npm run typecheck`; `npm run build` | Aprovados em domínio/API/testes/web; editor e PDF em chunks separados. |
+| API/PostgreSQL público/gestão | `npm run test:public` | **11/11**: sem cookie/cookie inválido; DTO exato/HEAD/no-store; token inválido/desativado/renovado; API interna/arquivos fechados; nomes/posição/setor/planta/conexão com token estável; admin/manager/viewer, contexto, revogação/atividade, campos extras; renovação ativa/desativada; duas renovações 200/409; reinício preserva token/estado/revisão/sessão; FK/unicidade/exclusão. |
+| QR/configuração | `npm run test:qr` | **2/2**: PNGs decodificados independentemente para localhost, HTTPS e IP/porta; URL exata. Origens/token inválidos recusados. PNG exibido, QR renovado e QR no render da impressão também decodificados para o endereço mostrado (`qr-final-proof.json`). |
+| Migrações/upgrade | `npm run test:db` | **39/39**: instalação nova e upgrade 006→007 com registros anteriores idênticos, mesmo esquema final e tabela pública vazia. |
+| Regressões auth/acesso | `npm run test:auth`; `npm run test:access` | **15/15 + 13/13**; sessões/origens/limites/perfis/revogação/isolamento preservados. |
+| Navegador gestão | Chromium/Playwright CLI, gerente, 1280×900/390×844 | Ativar, endereço/QR; desativar com confirmação/retirada da etiqueta; reativar mantém URL; renovar com aviso/nova URL. Viewer consulta mesa sem painel de gestão. |
+| Navegador público | Navegador separado, zero cookies e reload do QR | Oito pontos, dois destinos/DCs e pontos livres; zero links/navegação interna; só chamadas à API pública, sem sessão/parque. Capturas desktop/390 px inspecionadas, sem overflow. |
+| Navegador bloqueios | Reload após desativação/renovação; HTTP antigo/novo | Página anterior só mostra indisponibilidade; endereço antigo 404 e novo 200, sem redirecionamento a login. |
+| Impressão local | PDF print, `pdfinfo` e render Poppler inspecionado | **Uma página A4**, fundo branco, somente etiqueta/nome/QR/URL. Corrigidas páginas vazias da inspeção inicial e espaçamento do aviso na gestão. Sem papel físico. |
+| Preservação/operação | Backup, snapshot contagens/MD5, migração/health/Compose | **17 tabelas de trabalho idênticas**, incluindo usuários/sessões/login_limits, geometria/arquivos/conexões. Nova tabela vazia; sem fixture no banco de trabalho; web em loopback. |
+
+Total: **80 testes automatizados aprovados**, além do navegador. Evidências locais ignoradas em `output/playwright/etapa16/`: `typecheck.txt`, `build.txt`, provas `public-proof.txt`, `viewer-proof.txt`, `disabled.txt`, `renew-proof.txt`, `qr-browser.json`, snapshots `banco-antes.json`/`banco-preservado.json`, `cleanup.json`; imagens `gestao-etiqueta.png`, `gestao-390.png`, `publica-desktop.png`, `publica-390.png`, PDF `etiqueta-primeira.pdf` (versão final de uma página) e render `etiqueta-impressao-final.png`.
+
+QA em `http://localhost:5174`, banco exclusivo `topologia_new_test16_browser_204017c1cb4a` e contas/fixtures sintéticos. Navegadores, servidor e container `qa16_web` encerrados; banco QA/runtime/arquivos com credenciais removidos. Nenhum banco temporário da etapa 16 restante. Serviços principais `topologia_new`, `topologia_new_web`, `topologia_new_db` continuam em execução e saudáveis.
+
+Para validar: abra [localhost:5173](http://localhost:5173), entre como gerente/admin e selecione uma mesa; ative a consulta, confira o QR/endereço e imprima. `PUBLIC_ORIGIN` no `.env` define a origem das etiquetas; `npm run dev:all` reaplica configuração; `npm run dev:stop` encerra preservando volumes. **Prova local apenas:** localhost não acessa esta aplicação em outro aparelho; nenhum celular físico/domínio definitivo/HTTPS/produção validado. **Pendências essenciais da etapa 16: nenhuma. Próxima: etapa 17**, mediante solicitação.
 
 ## Etapa 15 — Busca e navegação integrada
 

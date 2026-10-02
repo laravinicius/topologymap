@@ -3,6 +3,7 @@ import Konva from 'konva';
 import { Stage, Layer, Group, Rect, Text, Line, Circle, Transformer, Image as KonvaImage } from 'react-konva';
 import type { LayoutCamera, PlanLayout, Position, Rectangle } from '@topologia-new/domain';
 import { normalizeRotation, pixelsPerMeter as ppm, rounded } from './layoutEditor';
+import { touchCamera } from './touchCamera';
 
 export interface CanvasObject { id: string; name: string; kind: 'desks' | 'racks'; placement: Rectangle | null }
 
@@ -57,6 +58,15 @@ export function PlanCanvas({ width, height, camera, objects, selected, editable,
   drawPoint: (point: Position, wallId?: string) => void; editDrawing: (layout: PlanLayout) => void;
 }) {
   const stage = useRef<Konva.Stage>(null);
+  const touches = useRef<Position[]>([]), gestureMoved = useRef(false), gestureOrigin = useRef<Position | null>(null);
+  useEffect(() => {
+    const previous = Konva.hitOnDragEnabled; Konva.hitOnDragEnabled = true;
+    return () => { Konva.hitOnDragEnabled = previous; };
+  }, []);
+  function touchPoints(event: TouchEvent) {
+    const rect = stage.current!.container().getBoundingClientRect();
+    return Array.from(event.touches).slice(0, 2).map(t => ({ x: t.clientX - rect.left, y: t.clientY - rect.top }));
+  }
   const [backgroundImage,setBackgroundImage] = useState<HTMLImageElement | undefined>();
   useEffect(() => {
     setBackgroundImage(undefined); if (!backgroundUrl) return;
@@ -68,9 +78,9 @@ export function PlanCanvas({ width, height, camera, objects, selected, editable,
   },[backgroundUrl,backgroundError]);
   const quantize = (v: number) => rounded(snap ? Math.round(v * 4) / 4 : v);
   const points = (values: Position[]) => values.flatMap(p => [p.x*ppm,p.y*ppm]);
-  const choose = (id: string) => { if (tool === 'select') select(id); };
+  const choose = (id: string) => { if (tool === 'select' && !gestureMoved.current) select(id); };
   function draw(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
-    if (!interactive || pan) return;
+    if (!interactive || pan || (e.evt.type.startsWith('touch') && gestureMoved.current)) return;
     if (tool === 'select') { if (e.target === stage.current) select(''); return; }
     const pointer = stage.current?.getPointerPosition(); if (!pointer) return;
     const wallId = (e.target as Konva.Node).getAttr('wallId') as string | undefined;
@@ -91,6 +101,26 @@ export function PlanCanvas({ width, height, camera, objects, selected, editable,
       lines.push(<Line key={`y${y}`} points={[left, y, left + width / camera.zoom, y]} stroke={y === 0 ? '#94a3b8' : '#e2e8f0'} strokeWidth={1} strokeScaleEnabled={false} />);
   }
   return <Stage ref={stage} width={width} height={height} x={camera.x} y={camera.y} scaleX={camera.zoom} scaleY={camera.zoom} draggable={pan && interactive}
+    onMouseDown={() => { gestureMoved.current = false; }}
+    onTouchStart={e => {
+      touches.current = touchPoints(e.evt); gestureOrigin.current = touches.current[0] ?? null;
+      gestureMoved.current = touches.current.length > 1;
+    }}
+    onTouchMove={e => {
+      if (!interactive) return;
+      const next = touchPoints(e.evt), previous = touches.current;
+      if (next.length > 1 || (!editable && tool === 'select') || pan) {
+        e.evt.preventDefault(); stage.current?.stopDrag();
+        const dragging = e.target.findAncestor((node: Konva.Node) => node.isDragging(), true);
+        dragging?.stopDrag();
+        const origin = gestureOrigin.current;
+        if (next.length > 1 || (origin && next[0] && Math.hypot(next[0].x-origin.x,next[0].y-origin.y) > 6)) gestureMoved.current = true;
+        if (gestureMoved.current) setCamera(touchCamera(camera, previous, next));
+      }
+      touches.current = next;
+    }}
+    onTouchEnd={e => { touches.current = touchPoints(e.evt); }}
+    onTouchCancel={() => { touches.current = []; gestureMoved.current = true; }}
     onClick={draw} onTap={draw}
     onDragEnd={e => { if (e.target === stage.current) setCamera({ ...camera, x: e.target.x(), y: e.target.y() }); }}
     onWheel={e => {

@@ -28,13 +28,13 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
   const [viewCamera, setViewCamera] = useState<LayoutCamera | null>(null);
   const [desks, setDesks] = useState<DeskSummary[]>([]), [racks, setRacks] = useState<RackSummary[]>([]);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [conflict, setConflict] = useState(false);
-  const [pan, setPan] = useState(false), [grid, setGrid] = useState(true), [snap, setSnap] = useState(true), [width, setWidth] = useState(600);
+  const [pan, setPan] = useState(false), [grid, setGrid] = useState(true), [snap, setSnap] = useState(true), [width, setWidth] = useState(600), [height, setHeight] = useState(480);
   const [rackId, setRackId] = useState('');
   const [tool, setTool] = useState<'select' | 'wall' | 'sector' | 'door' | 'window' | 'calibrate'>('select');
   const [vertices, setVertices] = useState<{ x: number; y: number }[]>([]);
   const container = useRef<HTMLDivElement>(null), generation = useRef(0), writing = useRef(false), catalogGeneration = useRef(0);
   const live = useRef({ writable, draft, baseline, busy }); live.current = { writable, draft, baseline, busy };
-  const dirty = !!draft && !!baseline && (!same(drawing(draft), drawing(baseline.layout)) || (writable && !same(draft, baseline.layout)));
+  const dirty = !!draft && !!baseline && !same(draft, baseline.layout);
   const objects: CanvasObject[] = draft ? [
     ...draft.desks.map(item => ({ ...item, kind: 'desks' as const, name: desks.find(value => value.id === item.id)?.name ?? item.id })),
     ...draft.racks.map(item => ({ ...item, kind: 'racks' as const, name: racks.find(value => value.id === item.id)?.name ?? item.id })),
@@ -49,9 +49,12 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
     const item = [...layout.desks, ...layout.racks].find(value => value.id === id);
     setSelected(item?.id ?? '');
     // Localizar jamais altera câmera persistida, revisão ou histórico de edição.
-    setViewCamera(focusId && item?.placement ? fitCamera([item.placement], width, 480) : null);
+    setViewCamera(focusId && item?.placement ? fitCamera([item.placement], width, height) : !writable ? fitCamera(drawingBounds(layout), width, height) : null);
     if (focusId) setNotice(item ? item.placement ? 'Objeto localizado na planta.' : 'Objeto sem posição; selecione Consultar pela lista.' : 'Objeto não encontrado nesta planta.');
-  }, [focusId, selectedDesk, !!draft, width, path]);
+  }, [focusId, selectedDesk, !!draft, width, height, path, writable]);
+  useEffect(() => {
+    if (!writable) { setTool('select'); setVertices([]); setPan(false); }
+  }, [writable]);
   useEffect(() => { if (draft && focusId) container.current?.scrollIntoView({ block: 'center' }); }, [focusId, !!draft, path]);
   function selectObject(id: string) {
     setSelected(id);
@@ -78,7 +81,7 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
     if (writing.current) return;
     if (mode === 'reconcile' && !window.confirm('Reconciliar somente posições de mesas/racks? Alterações locais de paredes, aberturas, setores, fundo e associações serão descartadas em favor da revisão atual.')) return;
     const current = live.current;
-    if (mode === 'replace' && current.draft && current.baseline && (!same(drawing(current.draft), drawing(current.baseline.layout)) || (current.writable && !same(current.draft, current.baseline.layout)))
+    if (mode === 'replace' && current.draft && current.baseline && !same(current.draft, current.baseline.layout)
       && !window.confirm('Recarregar a planta e descartar as alterações locais?')) return;
     writing.current = true; setBusy(true); setError(''); setNotice('');
     const number = generation.current;
@@ -121,14 +124,17 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
   }, [path]);
   useEffect(() => {
     const element = container.current; if (!element) return;
-    const observer = new ResizeObserver(entries => setWidth(Math.max(1, Math.floor(entries[0]!.contentRect.width))));
+    const observer = new ResizeObserver(entries => {
+      setWidth(Math.max(1, Math.floor(entries[0]!.contentRect.width)));
+      setHeight(Math.max(1, Math.floor(entries[0]!.contentRect.height)));
+    });
     observer.observe(element); return () => observer.disconnect();
   }, [!!draft]);
   useEffect(() => {
     const allow = () => {
       const current = live.current;
       if (current.busy) { setError('Aguarde a operação do layout terminar antes de sair.'); return false; }
-      return !current.draft || !current.baseline || (same(drawing(current.draft), drawing(current.baseline.layout)) && (!current.writable || same(current.draft, current.baseline.layout)))
+      return !current.draft || !current.baseline || same(current.draft, current.baseline.layout)
         || window.confirm('Há alterações de layout não salvas. Sair e descartá-las?');
     };
     const navigate = (event: Event) => {
@@ -139,7 +145,7 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
     };
     const unload = (event: BeforeUnloadEvent) => {
       const current = live.current;
-      if (current.busy || (current.draft && current.baseline && (!same(drawing(current.draft), drawing(current.baseline.layout)) || (current.writable && !same(current.draft, current.baseline.layout))))) { event.preventDefault(); event.returnValue = ''; }
+      if (current.busy || (current.draft && current.baseline && !same(current.draft, current.baseline.layout))) { event.preventDefault(); event.returnValue = ''; }
     };
     window.addEventListener('topologia:before-navigate', navigate);
     window.addEventListener('beforeunload', unload);
@@ -205,11 +211,11 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
       : { past: source.slice(0, -1), future: [...history.future, drawing(draft)] });
     setNotice(''); setError(''); setVertices([]);
   }
-  function camera(value: LayoutCamera) { if (draft && !busy) { if (viewCamera) setViewCamera(value); else setDraft({ ...draft, camera: value }); } }
+  function camera(value: LayoutCamera) { if (draft && !busy) { if (viewCamera || !writable) setViewCamera(value); else setDraft({ ...draft, camera: value }); } }
   function zoom(factor: number) {
     if (!draft) return;
     const old = currentCamera!, next = Math.max(.05, Math.min(8, old.zoom * factor));
-    camera({ zoom: next, x: width / 2 - (width / 2 - old.x) / old.zoom * next, y: 240 - (240 - old.y) / old.zoom * next });
+    camera({ zoom: next, x: width / 2 - (width / 2 - old.x) / old.zoom * next, y: height / 2 - (height / 2 - old.y) / old.zoom * next });
   }
   async function save() {
     if (!editable || !draft || !baseline || writing.current) return;
@@ -235,7 +241,7 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
       if (number !== generation.current) return false;
       const next = structuredClone(draft); next.geometry.background = result.background;
       writing.current = false; commit(next); setVertices([]); setTool('select');
-      setDraft({ ...next, camera: fitCamera(drawingBounds(next),width,480) });
+      setDraft({ ...next, camera: fitCamera(drawingBounds(next),width,height) });
       setNotice('Fundo importado. Ajuste alinhamento/escala e use Salvar layout para gravar a troca.'); return true;
     } catch (e) { if (number === generation.current) {
       if (e instanceof ApiError && e.status === 409) setError(e.message);
@@ -257,11 +263,15 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
     finally { if (number === generation.current) { writing.current = false; setBusy(false); } }
   }
   function centerPosition(): Rectangle {
-    return { x: (width / 2 - draft!.camera.x) / draft!.camera.zoom / 80, y: (240 - draft!.camera.y) / draft!.camera.zoom / 80, width: .6, height: 1, rotation: 0 };
+    return { x: (width / 2 - currentCamera!.x) / currentCamera!.zoom / 80, y: (height / 2 - currentCamera!.y) / currentCamera!.zoom / 80, width: .6, height: 1, rotation: 0 };
   }
   return <section className="plan-editor" aria-label="Editor de planta" aria-busy={busy}>
     <div className="panel-header"><h3>Área de planta</h3><span role="status" className={dirty ? 'badge pending' : 'badge'}>{dirty ? 'Alterações pendentes' : 'Layout sem alterações'}{baseline ? ` · revisão ${baseline.revision}` : ''}</span></div>
     <p className="intro">Medidas em metros; X à direita, Y para baixo e rotação horária. Selecione no desenho ou pela lista.</p>
+    <nav className="park-actions" aria-label="Consulta da planta">
+      <button className="secondary" onClick={() => container.current?.scrollIntoView({ block: 'center' })}>Ver desenho</button>
+      <button className="secondary" onClick={() => document.getElementById('plan-object-details')?.scrollIntoView({ block: 'start' })}>Ver lista e detalhes</button>
+    </nav>
     {error && <p role="alert" className="error">{error} {draft && (writable ? 'O trabalho local foi preservado.' : 'A visualização local foi mantida.')}</p>}
     {notice && <p role="status" className="success">{notice}</p>}
     <div className="plan-toolbar">
@@ -278,7 +288,7 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
         <button className="secondary" disabled={busy} onClick={() => zoom(1.25)} aria-label="Aumentar zoom">+</button>
         <output aria-label="Zoom atual">{Math.round(currentCamera!.zoom * 100)}%</output>
         <button className="secondary" disabled={busy} onClick={() => zoom(.8)} aria-label="Diminuir zoom">−</button>
-        <button className="secondary" disabled={busy} onClick={() => camera(fitCamera(drawingBounds(draft), width, 480))}>Enquadrar objetos</button>
+        <button className="secondary" disabled={busy} onClick={() => camera(fitCamera(drawingBounds(draft), width, height))}>Enquadrar objetos</button>
         <button className="secondary" disabled={busy} onClick={() => camera({ ...currentCamera!, x: currentCamera!.x - 80 })}>Câmera ←</button>
         <button className="secondary" disabled={busy} onClick={() => camera({ ...currentCamera!, x: currentCamera!.x + 80 })}>Câmera →</button>
         <button className="secondary" disabled={busy} onClick={() => camera({ ...currentCamera!, y: currentCamera!.y - 80 })}>Câmera ↑</button>
@@ -293,17 +303,17 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
       </div>}
       {tool !== 'select' && <p role="status">{tool === 'calibrate' ? `Clique em dois pontos no fundo (${vertices.length}/2) e informe a distância real abaixo.` : tool === 'wall' ? 'Clique no início e no fim da parede.' : tool === 'sector' ? 'Clique nos vértices em ordem e use Concluir setor. Não repita o primeiro vértice.' : 'Clique na parede para inserir a abertura.'}</p>}
       <div className="plan-canvas" ref={container} role="img" aria-label="Desenho da planta; lista equivalente e propriedades abaixo">
-        <PlanCanvas width={width} height={480} objects={objects} camera={currentCamera!} selected={selected} editable={editable && tool === 'select'} interactive={!busy}
+        <PlanCanvas width={width} height={height} objects={objects} camera={currentCamera!} selected={selected} editable={editable && tool === 'select'} interactive={!busy}
           layout={draft} tool={tool} vertices={vertices} drawPoint={drawPoint} editDrawing={commit} backgroundError={setError}
           backgroundUrl={draft.geometry.background ? `/api${base}/plans/${planId}/files/${draft.geometry.background.renderedFileId}` : undefined}
           pan={pan} grid={grid} snap={snap} select={selectObject} change={update} setCamera={camera} />
       </div>
-      <p className="intro">Roda do mouse: zoom no cursor. Mover câmera: arraste a área. {writable ? 'Selecione um objeto para arrastar, dimensionar e girar pelas alças ou pelos campos.' : 'Visualização — somente consulta. A câmera pode ser ajustada localmente.'}</p>
+      <p className="intro">{writable ? 'Roda do mouse: zoom no cursor. Mover câmera: arraste a área. Selecione um objeto para arrastar, dimensionar e girar pelas alças ou pelos campos.' : 'Toque para selecionar; arraste com um dedo para mover e use dois dedos para ampliar ou reduzir. Os botões de zoom e câmera oferecem o mesmo acesso. Visualização — somente consulta.'}</p>
       {!objects.length && <p className="empty-state">Cadastre mesas abaixo ou vincule um rack já cadastrado na unidade.</p>}
       <BackgroundPanel key={path} layout={draft} editable={editable} writable={writable} fileBase={`/api${base}/plans/${planId}/files`} importFile={importBackground} change={commit}
         points={tool === 'calibrate' ? vertices : []} pick={() => { setTool('calibrate'); setPan(false); setVertices([]); }} cancel={() => { setTool('select'); setVertices([]); }} />
       <ArchitecturePanel layout={draft} selected={selected} select={setSelected} editable={editable} writable={writable} change={commit} />
-      <div className="plan-details">
+      <div className="plan-details" id="plan-object-details">
         <div><h4>Objetos cadastrados na planta</h4><ul className="plan-object-list">{objects.map(item => <li key={item.id}><button className="secondary" aria-pressed={selected === item.id} onClick={() => selectObject(item.id)}>
           {item.kind === 'desks' ? 'Mesa' : `Rack (${park.datacenters.find(dc => dc.id === racks.find(r => r.id === item.id)?.datacenterId)?.name ?? 'Datacenter'})`}: {item.name}{!item.placement ? ' — sem posição' : ''}</button></li>)}</ul>
           {writable && <div><label htmlFor="layout-rack">Rack cadastrado na unidade</label><select id="layout-rack" disabled={!editable || dirty} value={rackId} onChange={e => setRackId(e.target.value)}>
@@ -315,9 +325,9 @@ export function PlanEditor({ park, planId, unitId, floorId, focusId, selectedDes
           <ObjectLink companyId={park.company.id} kind={object.kind === 'desks' ? 'desk' : 'rack'} id={object.id}>Consultar pela lista</ObjectLink>
           {writable && !object.placement && <button disabled={!editable} onClick={() => update(object.id, centerPosition())}>Posicionar no centro</button>}
           {object.placement && <Properties key={object.id} placement={object.placement} editable={editable} writable={writable} change={value => update(object.id, value)} objects={objects.filter(item => item.id !== object.id && item.placement)} />}
-          {object.kind === 'desks' && <><label htmlFor="desk-sector">Setor da mesa</label><select id="desk-sector" value={draft.desks.find(d => d.id === object.id)?.sectorId ?? ''} disabled={!editable} onChange={e => {
+          {object.kind === 'desks' && (writable ? <><label htmlFor="desk-sector">Setor da mesa</label><select id="desk-sector" value={draft.desks.find(d => d.id === object.id)?.sectorId ?? ''} disabled={!editable} onChange={e => {
             const next = structuredClone(draft); next.desks.find(d => d.id === object.id)!.sectorId = e.target.value || null; commit(next);
-          }}><option value="">Sem setor</option>{draft.sectors.map(s => <option key={s.id} value={s.id}>{s.name ?? s.id}</option>)}</select></>}
+          }}><option value="">Sem setor</option>{draft.sectors.map(s => <option key={s.id} value={s.id}>{s.name ?? s.id}</option>)}</select></> : <p>Setor: {draft.sectors.find(s => s.id === draft.desks.find(d => d.id === object.id)?.sectorId)?.name ?? 'Sem setor'}</p>)}
           {writable && object.kind === 'racks' && object.placement && <button className="secondary" disabled={!editable} onClick={() => update(object.id, null)}>Retirar posição do rack</button>}
         </> : <p className="empty-state">Selecione uma mesa ou rack para consultar suas propriedades.</p>}</div>
       </div>
@@ -333,6 +343,7 @@ function Properties({ placement, editable, writable, change, objects }: {
   const keys = ['x', 'y', 'width', 'height', 'rotation'] as const;
   const labels = { x: 'X (m)', y: 'Y (m)', width: 'Largura (m)', height: 'Profundidade (m)', rotation: 'Rotação (°)' };
   function submit(event: FormEvent) { event.preventDefault(); change({ ...fields, rotation: normalizeRotation(fields.rotation) }); }
+  if (!writable) return <dl>{keys.map(key => <div key={key}><dt>{labels[key]}</dt><dd>{placement[key]}</dd></div>)}</dl>;
   return <form className="plan-properties" onSubmit={submit}>
     <div className="placement-fields">{keys.map(key => <div key={key}><label htmlFor={`layout-${key}`}>{labels[key]}</label><input id={`layout-${key}`} type="number" step="any" required
       min={key === 'width' || key === 'height' ? .05 : undefined} value={Number.isNaN(fields[key]) ? '' : fields[key]} disabled={!editable} onChange={e => setFields({ ...fields, [key]: e.target.valueAsNumber })} /></div>)}</div>

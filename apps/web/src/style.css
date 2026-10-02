@@ -7,6 +7,26 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
+.public-desk, .desk-public-link { overflow-wrap: anywhere; }
+.public-points { list-style: none; padding: 0; }
+.public-points .panel { margin-top: 16px; }
+.public-points .badge { display: inline-block; margin-top: 8px; }
+.public-points dl { margin-bottom: 0; }
+.desk-public-link { border: 1px solid #cbd5e1; padding: 16px; border-radius: 8px; margin: 20px 0; }
+.desk-public-link input { font-size: .875rem; }
+.desk-public-link .hint { margin: 12px 0; }
+.qr-label { display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(100%, 360px); padding: 20px; margin-top: 20px; border: 1px solid #64748b; color: #000; background: #fff; text-align: center; }
+.qr-label img { max-width: 100%; height: auto; }
+.qr-label small { font-size: 12px; word-break: break-all; }
+.qr-open { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 0; color: #1d4ed8; }
+@media print {
+  @page { margin: 10mm; }
+  html:has(.qr-label), body:has(.qr-label) { background: #fff !important; }
+  body:has(.qr-label) *:not(:has(.qr-label)):not(.qr-label):not(.qr-label *) { display: none !important; }
+  body:has(.qr-label) *:has(.qr-label) { display: block !important; margin: 0 !important; padding: 0 !important; border: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; background: none !important; outline: none !important; }
+  body:has(.qr-label) .qr-label { position: absolute; top: 0; left: 0; margin: 0; width: 85mm; padding: 4mm; break-inside: avoid; }
+  body:has(.qr-label) .qr-label img { width: 55mm; height: 55mm; }
+}
 input, button { -webkit-tap-highlight-color: transparent; }
 .login-layout { max-width: 480px; }
 main:has(.plan-editor) { width: min(100% - 40px, 1280px); }
@@ -91,7 +111,7 @@ h3 { font-size: 1.05rem; margin: 24px 0 12px; }
 .park-detail h4, .delete-confirm p { margin-top: 0; }
 .connection-editor { margin-top: 20px; overflow-wrap: anywhere; }
 .connection-editor form { margin-top: 16px; }
-.checkbox { display: flex; align-items: center; gap: 12px; }
+.checkbox { display: flex; align-items: center; gap: 12px; min-height: 44px; }
 .checkbox input { width: 24px; min-height: 24px; margin: 0; }
 .permissions { margin-top: 28px; border-top: 1px solid #cbd5e1; }
 .placement-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -144,3 +164,44 @@ h5 { margin: 24px 0 8px; font-size: 1rem; }
 .background-panel input[type="range"] { width: min(100%, 24rem); min-height: 44px; }
 .pdf-preview { max-width: 100%; margin-block: 1rem; }
 .pdf-preview canvas { display: block; max-width: 100%; height: auto; border: 1px solid #cbd5e1; margin-top: .5rem; }
+/* Etapa 17: consulta em tela compacta; os papéis da API não dependem deste CSS. */
+main, .panel, .park-detail, .plan-toolbar, .park-actions { min-width: 0; }
+button, summary { overflow-wrap: anywhere; max-width: 100%; }
+summary { cursor: pointer; min-height: 44px; padding: 10px 12px; color: #1d4ed8; font-weight: 600; }
+summary:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.plan-toolbar a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; padding: 8px; overflow-wrap: anywhere; max-width: 100%; }
+.search-disclosure { margin-top: 20px; }
+.reading-shortcuts { margin-top: 16px; }
+#park-context, #plan-object-details, #rack-equipment-list { scroll-margin-top: 16px; }
+@media (min-width: 901px) {
+  .search-disclosure > summary { display: none; }
+}
+@media (max-width: 900px) {
+  main, main:has(.plan-editor) { width: calc(100% - 24px); margin: 24px auto; }
+  .panel { padding: 16px; margin-top: 20px; }
+  .plan-editor { padding: 12px; }
+  .plan-details { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .plan-canvas { height: clamp(240px, 55svh, 480px); }
+  .search-disclosure { border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px; }
+  .park-search { border: 0; margin: 0; padding: 8px; }
+  .park-detail { padding: 12px; }
+  .park-actions, .park-toolbar, .park-item-name { max-width: 100%; }
+  .park-actions button, .plan-toolbar button, .breadcrumbs button { min-width: 44px; }
+  .plan-toolbar { gap: 8px; }
+  .plan-toolbar button { width: auto; }
+  .checkbox { min-height: 44px; }
+  .rack-front-section { padding: 8px; margin-inline: 0; }
+  .rack-front-scroll { overscroll-behavior-x: contain; }
+  .rack-equipment-heading > strong, .rack-equipment-heading > span { white-space: normal; overflow: visible; }
+  .rack-front { --rack-unit-height: 60px; min-width: 700px; }
+  .rack-unit-equipment, .rack-unit-equipment.patch-panel { grid-template-columns: minmax(0, 1fr) 0 424px; }
+  .rack-unit-equipment.generic-equipment { grid-template-columns: minmax(0, 1fr) 0; }
+  .rack-visual-ports { align-self: center; }
+}
+@media (max-width: 480px) {
+  .public-points dl div { display: block; }
+  .search-input input { flex-basis: 100%; margin-bottom: 0; }
+  .search-input button { width: 100%; }
+  .reading-shortcuts button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
