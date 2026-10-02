@@ -14,6 +14,7 @@ import { registerRacks } from './racks/routes.js';
 import { registerConnections } from './connections/routes.js';
 import { registerLayout } from './layout/routes.js';
 import { registerFiles } from './files/routes.js';
+import { registerSearch } from './search/routes.js';
 
 declare module 'fastify' {
   interface FastifyRequest { session: AuthSession | null }
@@ -175,6 +176,7 @@ export async function buildApp(pool: pg.Pool, config: AuthConfig, logger = false
   registerConnections(app, pool);
   registerLayout(app, pool);
   registerFiles(app, pool, filesDirectory);
+  registerSearch(app, pool);
   app.get('/api/auth/session', { config: { access: 'session' } }, async request => request.session!);
   app.post('/api/auth/logout', async (request, reply) => {
     const token = request.cookies[cookieName];

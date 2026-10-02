@@ -6,9 +6,10 @@ import { api, ApiError, json, message } from './api';
 import { navigatePark } from './Park';
 import { RackFront } from './RackFront';
 import { RackPortEditor } from './RackPortEditor';
+import { ObjectLink } from './ObjectLink';
 
-export function Racks({ path, selected, selectedEquipment, writable, park, refresh, checkSession }: {
-  path: string; selected: string; selectedEquipment: string; writable: boolean; park: ParkSnapshot;
+export function Racks({ path, selected, selectedEquipment, selectedPort, writable, park, refresh, checkSession }: {
+  path: string; selected: string; selectedEquipment: string; selectedPort: string; writable: boolean; park: ParkSnapshot;
   refresh: () => Promise<void>; checkSession: () => Promise<void>;
 }) {
   const [items, setItems] = useState<RackSummary[]>([]), [rack, setRack] = useState<RackDetail | null>(null), [equipment, setEquipment] = useState<EquipmentDetail | null>(null);
@@ -18,9 +19,11 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
   const [name, setName] = useState(''), [kind, setKind] = useState<EquipmentKind>('generic'), [type, setType] = useState('Servidor');
   const [start, setStart] = useState('1'), [height, setHeight] = useState('1'), [quantity, setQuantity] = useState('24');
   const [portId, setPortId] = useState(''), [portName, setPortName] = useState('');
-  const [selectedPortId, setSelectedPortId] = useState('');
+  const selectedPortId = selectedPort;
+  const setSelectedPortId = (id: string) => navigatePark({ porta: id });
   const [confirm, setConfirm] = useState<{ path: string; name: string } | null>(null);
   const active = useRef(true), generation = useRef(0), alert = useRef<HTMLParagraphElement>(null);
+  const rackPanel = useRef<HTMLDivElement>(null), equipmentPanel = useRef<HTMLDivElement>(null);
   useEffect(() => { active.current = true; return () => { active.current = false; generation.current++; }; }, []);
   function closeForms() { setEditRack(null); setEditEquipment(null); setPortId(''); setConfirm(null); }
   async function load() {
@@ -42,10 +45,14 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
   useEffect(() => { setRack(null); setEquipment(null); closeForms(); setError(''); setNotice(''); setLoading(true); void load();
     return () => { generation.current++; };
   }, [path, selected, selectedEquipment]);
-  useEffect(() => { setSelectedPortId(''); }, [path, selected]);
   useEffect(() => { void load(); }, [park]);
   useEffect(() => { if (!writable) closeForms(); }, [writable]);
   useEffect(() => { if (error) alert.current?.focus(); }, [error]);
+  useEffect(() => {
+    if (selectedPortId && equipment?.ports.some(p => p.id === selectedPortId)) document.getElementById(`port-${selectedPortId}`)?.focus();
+    else if (equipment) equipmentPanel.current?.focus();
+    else if (rack) rackPanel.current?.focus();
+  }, [rack?.id, equipment?.id, selectedPortId]);
   async function perform(work: () => Promise<void>, success: string) {
     setBusy(true); setError(''); setNotice('');
     try { await work(); if (!active.current) return; closeForms(); setNotice(success); await load(); await refresh(); }
@@ -98,16 +105,18 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
       <button className="secondary" aria-label={`Abrir rack ${r.name}`} aria-pressed={selected === r.id} disabled={busy} onClick={() => navigatePark({ rack: r.id, equipamento: '' })}>{r.name}</button>
       <span className="badge">{r.capacityU} U · {r.equipmentCount} equipamentos</span>
     </div></li>)}</ul>
-    {rack && <div className="park-detail">
+    {rack && <div className="park-detail" ref={rackPanel} tabIndex={-1}>
       <div className="panel-header"><h4>Rack: {rack.name}</h4>{writable && <div className="park-actions">
         <button className="secondary" disabled={busy} onClick={() => openRack(rack)}>Editar rack</button>
         <button className="secondary" disabled={busy} onClick={() => { closeForms(); setConfirm({ path: `${path}/${rack.id}`, name: rack.name }); }}>Excluir rack</button>
         <button disabled={busy} onClick={() => openEquipment()}>Novo equipamento</button>
       </div>}</div>
       <p>Capacidade: {rack.capacityU} U. U inicial e altura definem a ocupação de cada equipamento.</p>
+      {rack.planId ? <ObjectLink companyId={park.company.id} kind="rack" id={rack.id} view="plan">Localizar rack na planta</ObjectLink> : <p className="intro">Rack sem planta; consulta completa disponível nesta lista.</p>}
+      {selectedPortId && !equipment?.ports.some(p => p.id === selectedPortId) && !loading && <p role="alert" className="error">Porta não encontrada neste equipamento.</p>}
       <RackFront rack={rack} writable={writable} selectedPort={selectedPortId} onSelectPort={(panel, id) => {
-        setSelectedPortId(id); setError(''); setNotice(''); closeForms();
-        if (selectedEquipment !== panel.id) navigatePark({ equipamento: panel.id });
+        setError(''); setNotice(''); closeForms();
+        navigatePark({ equipamento: panel.id, porta: id });
       }} onMove={moveEquipment} onEdit={editPosition} />
       {!rack.equipment.length && <p className="empty-state">Nenhum equipamento neste rack.</p>}
       <ul className="park-list">{rack.equipment.map(e => <li key={e.id}><div className="park-item-name">
@@ -115,7 +124,7 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
         <span>{e.kind === 'patch_panel' ? 'Patch panel' : 'Genérico'} · {e.equipmentType} · U {e.startU} a {e.startU + e.heightU - 1} ({e.heightU} U){e.kind === 'patch_panel' && ` · ${e.portCount} portas`}</span>
       </div></li>)}</ul>
     </div>}
-    {equipment && <div className="park-detail">
+    {equipment && <div className="park-detail" ref={equipmentPanel} tabIndex={-1}>
       <div className="panel-header"><h4>Equipamento: {equipment.name}</h4>{writable && <div className="park-actions">
         <button className="secondary" disabled={busy} onClick={() => openEquipment(equipment)}>Editar equipamento</button>
         <button className="secondary" disabled={busy} onClick={() => { closeForms(); setConfirm({ path: `${equipmentBase}/${equipment.id}`, name: equipment.name }); }}>Excluir equipamento</button>
@@ -123,7 +132,7 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
       <p>{equipment.equipmentType} · U {equipment.startU} a {equipment.startU + equipment.heightU - 1} · {equipment.portCount} portas</p>
       {equipment.kind === 'patch_panel' && !equipment.ports.length && <p className="empty-state">Este patch panel está sem portas. Edite a quantidade para gerar um novo lote.</p>}
       <h5>Lista de portas</h5>
-      <ul className="park-list">{equipment.ports.map(p => <li key={p.id}><div className="park-item-name"><button type="button" className="secondary" aria-pressed={selectedPortId === p.id} onClick={() => setSelectedPortId(p.id)}>{p.name}</button><span className={`badge ${p.connectionId ? 'occupied-port' : 'free-port'}`}>{p.connectionId ? 'Ocupada' : 'Livre'}</span></div>
+      <ul className="park-list">{equipment.ports.map(p => <li key={p.id} id={`port-${p.id}`} tabIndex={-1} data-selected={selectedPortId === p.id}><div className="park-item-name"><button type="button" className="secondary" aria-pressed={selectedPortId === p.id} onClick={() => setSelectedPortId(p.id)}>{p.name}</button><span className={`badge ${p.connectionId ? 'occupied-port' : 'free-port'}`}>{p.connectionId ? 'Ocupada' : 'Livre'}</span></div>
         <ConnectionPath connection={p.connection} />
         <button type="button" className="secondary" disabled={busy} aria-label={`Consultar porta ${p.name}`} onClick={() => setSelectedPortId(p.id)}>Consultar porta</button>
         {writable && <div className="park-actions"><button className="secondary" disabled={busy} aria-label={`Editar porta ${p.name}`} onClick={() => { closeForms(); setPortId(p.id); setPortName(p.name); setError(''); }}>Editar</button>
@@ -131,7 +140,7 @@ export function Racks({ path, selected, selectedEquipment, writable, park, refre
       </li>)}</ul>
     </div>}
     {rack && selectedPortId && (() => {
-      const selectedPort = rack.equipment.flatMap(item => item.ports).find(item => item.id === selectedPortId);
+      const selectedPort = equipment?.ports.find(item => item.id === selectedPortId);
       return selectedPort ? <RackPortEditor key={selectedPort.id}
         port={selectedPort} writable={writable} park={park} refresh={async () => { await load(); await refresh(); }} checkSession={checkSession}
         close={() => setSelectedPortId('')} saved={async status => { setBusy(false); setSelectedPortId(''); setNotice(status); await load(); }} /> : null;

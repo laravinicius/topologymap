@@ -171,6 +171,10 @@ Arquivos privados da planta passam pelo controle de acesso. Um QR público de me
 
 No computador: seletor de empresa/unidade/andar, área principal da planta ou rack, ferramentas contextuais e painel de detalhes. O mesmo objeto pode ser encontrado por busca e por lista.
 
+**Etapa 15 implementada:** catálogo derivado por JOIN em `apps/api/src/search/routes.ts`, compartilhado pela busca autenticada e pelo resolvedor de objetos por empresa/tipo/UUID. SQL filtra atividade/permissões atuais; facetas e resultados excluem empresas sem acesso. Filtros hierárquicos validados, pesquisa literal parametrizada com `ILIKE`, ordenação estável e páginas de 50 itens. Nenhuma migração, cópia de cadastros ou segunda relação de cabeamento. [PostgreSQL — Pattern Matching](https://www.postgresql.org/docs/current/functions-matching.html).
+
+`Search.tsx`, `ObjectLink.tsx`, `navigation.ts` e `ConnectionPath.tsx` integram lista/busca e consulta da origem/destino. URLs contêm cadeia completa, ponto/porta, filtros e foco. Conflitos hierárquicos limpam a busca com aviso explícito; ausência de planta/posição mantém a lista. O resolvedor revalida o objeto antes de navegar; requisições antigas são descartadas pelo cleanup, seguindo [React — useEffect](https://react.dev/reference/react/useEffect#fetching-data-with-effects). Desks/Racks focam os detalhes/itens consultados; PlanEditor enquadra o objeto pela câmera local, sem sujar o layout. Canvas/lista consultam os mesmos IDs, e datacenter identifica os racks; representação gráfica própria do datacenter permanece opcional e não foi adicionada. Recarga/back/forward e login a partir de URL direta preservam o contexto, com autorização nas APIs de detalhe e guard das edições pendentes. Contrato e limites em [NAVEGACAO.md](NAVEGACAO.md).
+
 No celular: navegação compacta, planta com movimentação e zoom por toque, detalhes em painel próprio e portas disponíveis também como lista. Todos os controles de consulta devem funcionar sem hover. A política de edição continua aplicada por perfil na API; a interface concentra as ferramentas de edição no computador.
 
 Usar estados textuais para porta livre/ocupada e ponto não associado; cores complementam a informação. Manter foco visível, controles com rótulos, contraste adequado e alternativa ao arraste.
@@ -251,7 +255,8 @@ Equipamentos podem ser movidos por arraste até uma U, por botões de uma U ou p
 - [ ] **Cadastros e conexões:** hierarquia completa, criação em lote de pontos/portas, vínculo único e edição pelas duas extremidades.
 - [ ] **Rack 2D:** capacidade em U, equipamentos genéricos, patch panels, seleção de portas e proteção contra sobreposição.
 - [x] **Planta 2D (etapas 11–14):** desenho, setores, importação de fundos privados PNG/JPG/PDF, escala/calibração, posicionamento, transformações e salvamento com revisão; API/banco, reinício e navegador local validados.
-- [ ] **Consulta e QR:** visualizador completo no celular, busca, lista equivalente e página pública restrita à mesa; geração de etiquetas.
+- [x] **Busca e navegação (etapa 15):** filtros, lista equivalente, foco/localização e consulta de conexões nos dois sentidos; IDs/filiações/autorização e URLs persistentes, incluindo dois datacenters por unidade e objetos sem posição/planta, validados em API/banco e navegador local.
+- [ ] **Consulta móvel e QR (etapas 16/17):** visualizador completo no celular e página pública restrita à mesa; geração de etiquetas.
 - [ ] **Validação e identidade:** fluxo manual completo, testes de acesso e integridade, persistência após reinício e verificação real em navegador de computador/celular; aplicação da identidade Microgate.
 - [ ] **Preparação de produção:** build, Compose de produção, backup/restauração e instruções para domínio/HTTPS. Publicação depende do ambiente a ser informado.
 

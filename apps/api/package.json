@@ -19,6 +19,7 @@
     "test:connections": "tsx --test --test-concurrency=1 test/connections.test.ts",
     "test:layout": "tsx --test --test-concurrency=1 test/layout.test.ts",
     "test:files": "tsx --test --test-concurrency=1 test/files.test.ts",
+    "test:search": "tsx --test --test-concurrency=1 test/search.test.ts",
     "admin:create": "tsx src/auth/admin-cli.ts"
   },
   "dependencies": {

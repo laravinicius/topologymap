@@ -57,6 +57,19 @@ button:disabled { opacity: .65; cursor: wait; }
 .workspace-nav { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
 .secondary { background: #fff; color: #1d4ed8; }
 .secondary:hover:not(:disabled) { background: #eff6ff; }
+.park-search { margin: 24px 0; border-top: 1px solid #cbd5e1; padding-top: 12px; min-width: 0; }
+.park-search form { margin-top: 12px; }
+.search-input { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.search-input input { flex: 1 1 220px; }
+.search-input button { margin: 0; }
+.search-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; }
+.search-results li > div { min-width: 0; overflow-wrap: anywhere; }
+.search-results li > div:first-child { flex: 1 1 280px; }
+.object-link { display: inline-flex; flex-direction: column; max-width: 100%; }
+.object-link button { max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+.connection-path { flex: 1 1 100%; overflow-wrap: anywhere; }
+.connection-path .park-actions { margin-top: 8px; }
+.park-list li[data-selected="true"] { background: #eff6ff; outline: 2px solid #2563eb; padding: 12px; }
 .admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
 .admin-grid > section, .permissions, .company-context { min-width: 0; overflow-wrap: anywhere; }
 h3 { font-size: 1.05rem; margin: 24px 0 12px; }

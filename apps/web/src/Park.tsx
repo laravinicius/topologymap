@@ -4,20 +4,9 @@ import type { NamedEntity, ParkSnapshot, Unit } from '@topologia-new/domain';
 import { api, ApiError, json, message } from './api';
 import { Desks } from './Desks';
 import { Racks } from './Racks';
-import { confirmNavigation } from './navigation';
+import { navigatePark } from './navigation';
+export { navigatePark } from './navigation';
 const PlanEditor = lazy(() => import('./PlanEditor').then(module => ({ default: module.PlanEditor })));
-
-export function navigatePark(changes: Record<string, string>) {
-  const query = new URLSearchParams(location.search);
-  if (['unidade', 'andar', 'planta', 'datacenter'].some(key => key in changes)) query.delete('mesa');
-  if (['unidade', 'andar', 'planta', 'datacenter'].some(key => key in changes)) { query.delete('rack'); query.delete('equipamento'); }
-  if ('rack' in changes) query.delete('equipamento');
-  for (const [key, value] of Object.entries(changes)) { if (value) query.set(key, value); else query.delete(key); }
-  const destination = `/parque?${query}`;
-  if (!confirmNavigation(destination)) return;
-  history.pushState(null, '', destination);
-  window.dispatchEvent(new PopStateEvent('popstate'));
-}
 
 function Collection({ title, singular, gender = 'o', path, items, writable, selected, select, refresh, checkSession, unit = false }: {
   title: string; singular: string; gender?: 'o' | 'a'; path: string; items: NamedEntity[]; writable: boolean;
@@ -101,13 +90,13 @@ export function Park({ data, refresh, checkSession }: { data: ParkSnapshot; refr
         <h3>Andar: {floor.name}</h3>
         <Collection {...common} title="Plantas" singular="planta" gender="a" path={`${base}/units/${unit.id}/floors/${floor.id}/plans`} items={data.plans.filter(item => item.floorId === floor.id)} selected={plan?.id} select={id => navigatePark({ planta: id, datacenter: '' })} />
         {plan && <div key={plan.id}><section className="park-detail"><h4>Planta: {plan.name}</h4><p>Posicione os objetos na área de planta; cadastre mesas e pontos abaixo.</p></section>
-          <Suspense fallback={<p role="status">Carregando área de planta…</p>}><PlanEditor {...common} park={data} planId={plan.id} unitId={unit.id} floorId={floor.id} /></Suspense>
-          <Desks {...common} park={data} path={`${base}/units/${unit.id}/floors/${floor.id}/plans/${plan.id}/desks`} selected={query.get('mesa') ?? ''} />
+          <Suspense fallback={<p role="status">Carregando área de planta…</p>}><PlanEditor {...common} park={data} planId={plan.id} unitId={unit.id} floorId={floor.id} focusId={query.get('foco') ?? ''} selectedDesk={query.get('mesa') ?? ''} /></Suspense>
+          <Desks {...common} park={data} path={`${base}/units/${unit.id}/floors/${floor.id}/plans/${plan.id}/desks`} selected={query.get('mesa') ?? ''} selectedPoint={query.get('ponto') ?? ''} />
         </div>}
       </div> : <p className="empty-state">Selecione um andar para consultar suas plantas.</p>}
       <Collection {...common} title="Datacenters da unidade" singular="datacenter" path={`${base}/units/${unit.id}/datacenters`} items={data.datacenters.filter(item => item.unitId === unit.id)} selected={datacenter?.id} select={id => navigatePark({ datacenter: id, andar: '', planta: '' })} />
       {datacenter && <div key={datacenter.id}><section className="park-detail"><h4>Datacenter: {datacenter.name}</h4><p>Datacenter vinculado à unidade {unit.name}.</p></section>
-        <Racks {...common} park={data} path={`${base}/units/${unit.id}/datacenters/${datacenter.id}/racks`} selected={query.get('rack') ?? ''} selectedEquipment={query.get('equipamento') ?? ''} />
+        <Racks {...common} park={data} path={`${base}/units/${unit.id}/datacenters/${datacenter.id}/racks`} selected={query.get('rack') ?? ''} selectedEquipment={query.get('equipamento') ?? ''} selectedPort={query.get('porta') ?? ''} />
       </div>}
     </div>}
   </div>;

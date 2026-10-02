@@ -6,4 +6,5 @@ export * from './desks.js';
 export * from './racks.js';
 export * from './connections.js';
 export * from './layout.js';
+export * from './search.js';
 export type { AuthUser, AuthSession, LoginInput } from './auth.js';

@@ -47,7 +47,7 @@ export function App() {
   useEffect(() => {
     if (loading || connectionError) return;
     const path = session ? (window.location.pathname === '/administracao' && session.user.isAdmin ? '/administracao' : '/parque') : '/login';
-    if (window.location.pathname !== path) window.history.replaceState(null, '', path);
+    if (window.location.pathname !== path) window.history.replaceState(null, '', `${path}${window.location.search}`);
   }, [session, loading, connectionError]);
   useEffect(() => {
     if (!session) return;
@@ -73,6 +73,7 @@ export function App() {
     setBusy(true); setActionError('');
     try {
       await api<void>('/auth/logout', { method: 'POST' });
+      window.history.replaceState(null, '', '/login');
       setSession(null); setPassword(''); setNotice('Você saiu da aplicação.');
     } catch (error) { setActionError(message(error)); }
     finally { authAction.current = false; setBusy(false); }

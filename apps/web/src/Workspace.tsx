@@ -4,6 +4,7 @@ import { api, ApiError, message } from './api';
 import { Administration } from './Administration';
 import { Park } from './Park';
 import { confirmNavigation } from './navigation';
+import { Search } from './Search';
 
 export function Workspace({ session, checkSession }: { session: AuthSession; checkSession: () => Promise<void> }) {
   const [companies, setCompanies] = useState<AccessibleCompany[]>([]);
@@ -67,6 +68,7 @@ export function Workspace({ session, checkSession }: { session: AuthSession; che
           <option value="">Selecione uma empresa</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name} — {c.role === 'admin' ? 'Administrador geral' : c.role === 'manager' ? 'Gerenciamento' : 'Visualização'}</option>)}
         </select>
       </>}
+      {!loading && <Search companies={companies} checkSession={checkSession} />}
       {company && <div className="company-context">
         <h3>{company.name}</h3><p className="badge">{company.role === 'admin' ? 'Administrador geral' : company.role === 'manager' ? 'Gerenciamento' : 'Visualização — somente consulta'}</p>
         {park && <Park key={company.id} data={park} refresh={refresh} checkSession={checkSession} />}

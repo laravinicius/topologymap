@@ -5,10 +5,11 @@ import { api, ApiError, json, message } from './api';
 import { navigatePark } from './Park';
 import { ConnectionPath } from './ConnectionPath';
 import { DeskConnectionEditor, type ConnectionAction } from './DeskConnectionEditor';
+import { ObjectLink } from './ObjectLink';
 
 const defaultPlacement: Rectangle = { x: 0, y: 0, width: 1.2, height: 0.6, rotation: 0 };
-export function Desks({ path, selected, writable, park, refresh, checkSession }: {
-  path: string; selected: string; writable: boolean; park: ParkSnapshot; refresh: () => Promise<void>; checkSession: () => Promise<void>;
+export function Desks({ path, selected, selectedPoint, writable, park, refresh, checkSession }: {
+  path: string; selected: string; selectedPoint: string; writable: boolean; park: ParkSnapshot; refresh: () => Promise<void>; checkSession: () => Promise<void>;
 }) {
   const [items, setItems] = useState<DeskSummary[]>([]), [detail, setDetail] = useState<DeskDetail | null>(null);
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
@@ -18,7 +19,7 @@ export function Desks({ path, selected, writable, park, refresh, checkSession }:
   const [pointId, setPointId] = useState(''), [pointName, setPointName] = useState('');
   const [deleting, setDeleting] = useState<{ path: string; name: string } | null>(null);
   const [connectionAction, setConnectionAction] = useState<ConnectionAction | null>(null);
-  const generation = useRef(0), active = useRef(true), alert = useRef<HTMLParagraphElement>(null);
+  const generation = useRef(0), active = useRef(true), alert = useRef<HTMLParagraphElement>(null), detailPanel = useRef<HTMLDivElement>(null);
   useEffect(() => { active.current = true; return () => { active.current = false; generation.current++; }; }, []);
   async function load() {
     const current = ++generation.current;
@@ -45,6 +46,11 @@ export function Desks({ path, selected, writable, park, refresh, checkSession }:
   useEffect(() => { void load(); }, [park]);
   useEffect(() => { if (!writable) { setEditing(null); setPointId(''); setDeleting(null); setConnectionAction(null); setBusy(false); } }, [writable]);
   useEffect(() => { if (error) alert.current?.focus(); }, [error]);
+  useEffect(() => {
+    if (!detail || new URLSearchParams(location.search).has('foco')) return;
+    if (selectedPoint) document.getElementById(`point-${selectedPoint}`)?.focus();
+    else detailPanel.current?.focus();
+  }, [detail?.id, selectedPoint]);
   function edit(row?: DeskDetail) {
     setConnectionAction(null);
     setEditing(row ?? 'new'); setName(row?.name ?? ''); setQuantity(String(row?.pointCount ?? 8));
@@ -85,14 +91,16 @@ export function Desks({ path, selected, writable, park, refresh, checkSession }:
       <button className="secondary" aria-label={`Abrir mesa ${row.name}`} aria-pressed={selected === row.id} disabled={busy} onClick={() => navigatePark({ mesa: row.id })}>{row.name}</button>
       <span className="badge">{row.pointCount} pontos</span>
     </div></li>)}</ul>
-    {detail && <div className="park-detail">
+    {detail && <div className="park-detail" ref={detailPanel} tabIndex={-1}>
       <div className="panel-header"><h4>Mesa: {detail.name}</h4>{writable && <div className="park-actions">
         <button className="secondary" disabled={busy} onClick={() => edit(detail)}>Editar mesa</button>
         <button className="secondary" disabled={busy} onClick={() => { setConnectionAction(null); setDeleting({ path: `${path}/${detail.id}`, name: detail.name }); setEditing(null); }}>Excluir mesa</button>
       </div>}</div>
       <p>{detail.pointCount} pontos · Centro ({detail.placement.x}, {detail.placement.y}) m · {detail.placement.width} × {detail.placement.height} m · Rotação {detail.placement.rotation}°</p>
+      <ObjectLink companyId={park.company.id} kind="desk" id={detail.id} view="plan">Localizar mesa na planta</ObjectLink>
+      {selectedPoint && !detail.points.some(p => p.id === selectedPoint) && <p role="alert" className="error">Ponto não encontrado nesta mesa.</p>}
       {!detail.points.length && <p className="empty-state">Esta mesa ainda não possui pontos.</p>}
-      <ul className="park-list">{detail.points.map(p => <li key={p.id}><div className="park-item-name"><strong>{p.name}</strong><span className="badge">{p.connectionId ? 'Associado' : 'Não associado'}</span></div>
+      <ul className="park-list">{detail.points.map(p => <li key={p.id} id={`point-${p.id}`} tabIndex={-1} data-selected={selectedPoint === p.id}><div className="park-item-name"><button type="button" className="secondary" aria-label={`Consultar ponto ${p.name}`} aria-pressed={selectedPoint === p.id} onClick={() => navigatePark({ ponto: p.id })}>{p.name}</button><span className="badge">{p.connectionId ? 'Associado' : 'Não associado'}</span></div>
         <ConnectionPath connection={p.connection} />
         {writable && <div className="park-actions">{(p.connection ? ['transfer', 'unlink'] as const : ['associate'] as const).map(mode => {
           const label = mode === 'associate' ? 'Associar' : mode === 'transfer' ? 'Transferir' : 'Desvincular';

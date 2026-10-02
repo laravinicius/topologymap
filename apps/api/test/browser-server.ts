@@ -7,6 +7,8 @@ import { databaseConfig } from '../src/database/config.js';
 import { runMigrations } from '../src/database/migrations.js';
 import { buildApp } from '../src/app.js';
 import { provisionAdmin } from '../src/auth/provision.js';
+import { searchFixtures } from './search-fixtures.js';
+import { hashPassword } from '../src/auth/password.js';
 
 const config = databaseConfig();
 const stage04 = process.argv.includes('--stage04');
@@ -18,8 +20,9 @@ const stage09 = process.argv.includes('--stage09');
 const stage10 = process.argv.includes('--stage10');
 const stage12 = process.argv.includes('--stage12');
 const stage13 = process.argv.includes('--stage13');
-const provision = stage04 || stage05 || stage06 || stage07 || stage08 || stage09 || stage10 || stage12 || stage13;
-const database = `topologia_new_test${stage13 ? '13' : stage12 ? '12' : stage10 ? '10' : stage09 ? '09' : stage08 ? '08' : stage07 ? '07' : stage06 ? '06' : stage05 ? '05' : stage04 ? '04' : '03'}_browser_${randomBytes(6).toString('hex')}`;
+const stage15 = process.argv.includes('--stage15');
+const provision = stage04 || stage05 || stage06 || stage07 || stage08 || stage09 || stage10 || stage12 || stage13 || stage15;
+const database = `topologia_new_test${stage15 ? '15' : stage13 ? '13' : stage12 ? '12' : stage10 ? '10' : stage09 ? '09' : stage08 ? '08' : stage07 ? '07' : stage06 ? '06' : stage05 ? '05' : stage04 ? '04' : '03'}_browser_${randomBytes(6).toString('hex')}`;
 const root = new pg.Pool({ ...config, max: 1 });
 const pool = new pg.Pool({ ...config, database, max: 5 });
 const runtime = fileURLToPath(new URL('../../../output/playwright/runtime.json', import.meta.url));
@@ -40,9 +43,15 @@ try {
   const credential = { database, login: 'qa.synthetic', password: randomBytes(24).toString('base64url'), pid: process.pid };
   // Provisionamento sintético só por opção explícita no servidor de QA separado.
   if (provision) await provisionAdmin(pool, { ...credential, name: 'Administrador sintético QA' });
+  let fixture;
+  if (stage15) {
+    fixture = await searchFixtures(pool);
+    const user = (await pool.query("INSERT INTO users(login,name,password_hash,is_admin) VALUES ('viewer.synthetic','Consulta sintética QA',$1,false) RETURNING id", [await hashPassword(credential.password)])).rows[0].id;
+    await pool.query("INSERT INTO company_permissions(user_id,company_id,role) VALUES ($1,$2,'viewer'),($1,$3,'viewer')", [user, fixture.company, fixture.other]);
+  }
   app = await buildApp(pool, { origins: [process.env.QA_ORIGIN ?? 'http://localhost:5174'], production: false, sessionSeconds: 28800 });
   await mkdir(fileURLToPath(new URL('../../../output/playwright/', import.meta.url)), { recursive: true });
-  await writeFile(runtime, JSON.stringify(credential), { mode: 0o600 });
+  await writeFile(runtime, JSON.stringify({ ...credential, fixture }), { mode: 0o600 });
   await app.listen({ host: '0.0.0.0', port: 3002 });
   console.log(`QA isolado pronto em api:3002; banco ${database}; credencial temporária no arquivo ignorado output/playwright/runtime.json. ${provision ? 'Administrador sintético provisionado por opção explícita.' : 'Nenhum administrador criado.'}`);
   process.once('SIGINT', () => { void stop(); });

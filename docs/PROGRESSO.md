@@ -2,9 +2,46 @@
 
 Os arquivos de evidências em `docs/evidencias/` são locais e ignorados pelo Git. Capturas, logs e relatórios permanecem disponíveis na máquina onde foram gerados; os resultados das verificações continuam registrados neste documento. Os caminhos abaixo são referências locais e não acompanham novas cópias do repositório.
 
-Atualizado em 02/10/2026 (America/Sao_Paulo), após implementação e validação da etapa 14.
+Atualizado em 02/10/2026 (America/Sao_Paulo), após implementação e validação da etapa 15.
 
-**Estado atual:** etapas 01 a 14 concluídas. Ambiente local saudável em [localhost:5173](http://localhost:5173), com fundos PNG/JPG/PDF privados e persistentes, seleção de página pelo PDF.js, alinhamento, opacidade e calibração, integrados ao editor e ao salvamento versionado. Dados de trabalho preservados; QA sintético somente em bancos separados, removidos ao terminar. Etapas 15 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
+**Estado atual:** etapas 01 a 15 concluídas. Ambiente local saudável em [localhost:5173](http://localhost:5173), com busca, filtros, lista equivalente e navegação entre plantas, mesas/pontos, datacenters, racks/equipamentos/portas, integrados ao parque existente. Dados de trabalho preservados; QA sintético somente em bancos separados, removidos ao terminar. Etapas 16 a 21 permanecem pendentes. As seções anteriores preservam o histórico.
+
+## Etapa 15 — Busca e navegação integrada
+
+**Situação: Concluída em 02/10/2026.** Entrega limitada à etapa 15. Próxima: **16 — Página pública e etiquetas QR Code**, pendente e não iniciada.
+
+### Entrega
+
+`packages/domain/src/search.ts` define resultados, facetas e destinos canônicos. `apps/api/src/search/routes.ts` entrega busca autenticada por nomes/tipos, filtros empresa/unidade/andar/setor, paginação e resolução de objetos por UUID, com atividade/permissões atuais no SQL. Catálogo derivado dos cadastros: nomes livres/homônimos não substituem IDs. Nenhuma migração, carga no banco de trabalho ou duplicação de conexões.
+
+`Search.tsx`, `ObjectLink.tsx`, `navigation.ts`, `ConnectionPath.tsx`, `PlanEditor.tsx`, `Desks.tsx`, `Racks.tsx`, `Park.tsx`, `Workspace.tsx` e `App.tsx` integram busca/lista, consulta nos dois sentidos e foco na planta correta. Porta/ponto, filtros e foco ficam na URL e sobrevivem à recarga/histórico/login direto. Objetos sem posição ou planta continuam consultáveis. Destinos fora dos filtros limpam a busca com aviso explícito. Foco usa câmera local sem alterar layout/revisão/histórico, inclusive como administrador. Racks na lista gráfica identificam o datacenter; sua representação gráfica própria permanece opcional e não foi adicionada ao contrato de geometria.
+
+Contrato/uso em [NAVEGACAO.md](NAVEGACAO.md), README/IMPLEMENTACAO/plano atualizados. Testes API/cliente e fixtures opcionais em `search.test.ts`, `search-fixtures.ts`, `navigation.test.ts` e `browser-server.ts --stage15`.
+
+### Verificações
+
+| Categoria | Procedimento | Resultado |
+|---|---|---|
+| Typecheck/build | `npm run typecheck`; `npm run build` | Aprovados em domínio, API/testes e web. Editor/PDF continuam em chunks separados. |
+| API/PostgreSQL — busca | `npm run test:search` | **9/9**: resultados/facetas autorizados, visualizador, nomes atuais e literais, filtros/UUIDs incluindo caixa, filiações incompatíveis, dois DCs homônimos, conexões em ambos os sentidos/andares, sem posição/planta, paginação de 65 itens, URLs diretas, revogação/desativação com sessão existente. |
+| Cliente — URLs | `npm run test:navigation` | **4/4**: cadeia completa, origem/destino, foco no rack canônico, filtros compatíveis e aviso/limpeza dos conflitantes, consulta sem posição/planta. |
+| Regressões API/PostgreSQL | `npm run test:connections`; `npm run test:racks` | **13/13 + 13/13**: conexão única, transferências/locks/concorrência, autorização/isolamento, racks/portas/equipamentos e integridade preservados. |
+| Regressões do editor | `npm run test:layout-editor` | **6/6**: histórico, relações, reconciliação, enquadramento e calibração. |
+| Navegador — busca/filtros | Chromium/Playwright CLI, conta visualizadora, viewport 1280 × 900 | Rack 01 aparece duas vezes com DC/andar corretos; filtro de andar limita ao rack daquele contexto; empresa/unidade/andar/setor/texto permanecem após recarga. |
+| Navegador — conexões/histórico | Ponto 1 → Porta 1 no DC 01 → origem; Porta 2 no DC 02 → Ponto inverso → destino | Consulta nos dois sentidos, selecionando UUIDs corretos. Porta/ponto sobrevivem à recarga; Voltar/Avançar restauram o lado anterior. Filtro de origem conflitante é limpo com aviso. Localizar rack abre a planta do outro andar. |
+| Navegador — sem posição/planta | Rack 01 no DC 02 vinculado sem posição; Rack sem planta com patch panel/porta livre | Planta vinculada informa ausência de posição e mantém **Consultar pela lista**, inclusive após recarga. Rack sem planta permite equipamento/porta livre e mantém seleção ao recarregar. |
+| Navegador — acesso direto | Empresa não autorizada e rack do DC 01 sob URL do DC 02 | HTTP 404 e mensagem contextual; nenhum detalhe restrito ou de filiação cruzada. Visualizador sem ferramentas de escrita; **zero escritas** no fluxo final de busca. |
+| Navegador — edição/entrada direta | Administrador entra por URL de mesa/ponto/foco; clique real no canvas; alterar X/cancelar saída/desfazer/localizar rack/reload | Login retoma a URL completa. Canvas seleciona a mesa e abre seus pontos. Cancelar a navegação conserva planta/rascunho; desfazer libera a troca. Foco e recarga deixam **Salvar layout desabilitado**, sem escrita. |
+| Visual/responsivo | Capturas desktop/390 × 844 inspecionadas e `scrollWidth <= innerWidth` | Busca/filtros/resultados e lista de portas utilizáveis, sem overflow do documento. Sem teste em dispositivo físico. |
+| Preservação/operação | Snapshot de contagens/MD5 em todas as tabelas do banco de trabalho, Compose/health e `git diff --check` | **18 tabelas idênticas** antes/depois, incluindo usuários/sessões. Migrações 001–006 preservadas; nenhuma migração nova. Serviços principais saudáveis, somente web em loopback. |
+
+Total: **45 testes automatizados aprovados**, além dos cenários no navegador. Durante a validação, foram corrigidos a tipagem UUID dos parâmetros SQL e a limpeza de foco ao trocar mesa/rack. Os scripts de navegador foram ajustados aos nomes acessíveis reais (**Editor de planta**, **Desfazer layout**, **Alterações pendentes**) e o cancelamento do diálogo foi verificado também pelo snapshot/fluxo posterior. Erros 401 do login sem sessão e 404 dos ataques sintéticos são esperados; nenhum erro de execução da interface nos fluxos finais.
+
+Evidências locais ignoradas em `output/playwright/etapa15/`: `typecheck.txt`, `build.txt`, `api-search.txt`, `api-connections.txt`, `api-racks.txt`, `navigation.txt`, `layout-editor.txt`, `browser-flows-final.txt`, `browser-unplaced-final.txt`, `browser-admin-finish.txt`, `browser-summary.txt`, `admin-cancelled.txt`, snapshots `banco-antes.json`/`banco-depois.json`, `preservacao.json`, `operacao.txt` e `diff-check.txt`. Capturas: `busca-datacenters.png`, `busca-390.png`, `rack-localizado.png`, `lista-sem-planta.png` e `rack-390.png`.
+
+QA em `http://localhost:5174`, API interna temporária `api:3002`, bancos exclusivos `topologia_new_test15_browser_*` e contas/fixtures sintéticas. Navegadores e web/servidor QA encerrados; bancos e credencial temporária removidos. Nenhuma fixture no banco de trabalho; volumes preservados. `topologia_new`, `topologia_new_web` e `topologia_new_db` continuam em execução.
+
+Para validar manualmente: abra [localhost:5173](http://localhost:5173), entre com sua conta, use **Busca e lista do parque** e **Consultar**/**Localizar na planta**. Na mesa/porta associada, percorra origem/destino e recarregue ou use Voltar. `npm run dev:stop` para parar preservando volumes; `npm run dev:all` para subir. **Pendências essenciais da etapa 15: nenhuma.** Etapa 16 não iniciada; sem validação em dispositivo físico ou produção, commit/push/publicação.
 
 ## Etapa 14 — Importação de plantas e calibração de escala
 
